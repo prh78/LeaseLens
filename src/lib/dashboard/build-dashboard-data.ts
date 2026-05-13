@@ -1,5 +1,11 @@
 import { computeNextCriticalAction, hasCriticalActionWithin90Days } from "@/lib/dashboard/next-critical-action";
-import type { DashboardAlertRow, DashboardData, DashboardLeaseRow, DashboardMetrics } from "@/lib/dashboard/types";
+import type {
+  DashboardAlertRow,
+  DashboardAlertSourceRow,
+  DashboardData,
+  DashboardLeaseRow,
+  DashboardMetrics,
+} from "@/lib/dashboard/types";
 import type { Tables } from "@/lib/supabase/database.types";
 
 type LeaseWithExtracted = Tables<"leases"> & {
@@ -52,28 +58,9 @@ function formatTriggerDueLabel(triggerIso: string): string {
   return t.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-type AlertWithLease = {
-  id: string;
-  alert_type: string;
-  trigger_date: string;
-  event_kind: string | null;
-  event_date: string | null;
-  horizon_days: number | null;
-  lease_id: string;
-  leases: { property_name: string } | { property_name: string }[] | null;
-};
-
-function leaseNameFromJoin(leases: AlertWithLease["leases"]): string {
-  if (!leases) {
-    return "Lease";
-  }
-  const row = Array.isArray(leases) ? leases[0] : leases;
-  return row?.property_name ?? "Lease";
-}
-
 export function buildDashboardData(
   leaseRows: LeaseWithExtracted[],
-  alertRows: AlertWithLease[],
+  alertRows: DashboardAlertSourceRow[],
 ): DashboardData {
   const metrics: DashboardMetrics = {
     totalLeases: leaseRows.length,
@@ -96,7 +83,7 @@ export function buildDashboardData(
 
   const alerts: DashboardAlertRow[] = alertRows.map((a) => ({
     id: a.id,
-    title: `${leaseNameFromJoin(a.leases)} — ${a.alert_type}`,
+    title: `${a.property_name} — ${a.alert_type}`,
     dueLabel: formatTriggerDueLabel(a.trigger_date),
     severity: severityForAlert(a.horizon_days, a.trigger_date),
   }));

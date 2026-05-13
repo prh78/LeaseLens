@@ -28,3 +28,15 @@ export type DashboardData = Readonly<{
   leases: DashboardLeaseRow[];
   alerts: DashboardAlertRow[];
 }>;
+
+/** Pending alert row enriched with property name (avoids fragile PostgREST embeds). */
+export type DashboardAlertSourceRow = Readonly<{
+  id: string;
+  alert_type: string;
+  trigger_date: string;
+  event_kind: string | null;
+  event_date: string | null;
+  horizon_days: number | null;
+  lease_id: string;
+  property_name: string;
+}>;

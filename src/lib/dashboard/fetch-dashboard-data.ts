@@ -1,5 +1,5 @@
 import { buildDashboardData } from "@/lib/dashboard/build-dashboard-data";
-import type { DashboardData } from "@/lib/dashboard/types";
+import type { DashboardData, DashboardAlertSourceRow } from "@/lib/dashboard/types";
 import type { Tables } from "@/lib/supabase/database.types";
 import type { LeaseLensServerClient } from "@/lib/supabase/server";
 
@@ -7,7 +7,7 @@ type LeaseWithExtracted = Tables<"leases"> & {
   extracted_data: Tables<"extracted_data"> | Tables<"extracted_data">[] | null;
 };
 
-type AlertWithLease = {
+type AlertRowRaw = {
   id: string;
   alert_type: string;
   trigger_date: string;
@@ -15,7 +15,6 @@ type AlertWithLease = {
   event_date: string | null;
   horizon_days: number | null;
   lease_id: string;
-  leases: { property_name: string } | { property_name: string }[] | null;
 };
 
 /**
@@ -50,8 +49,9 @@ export async function fetchDashboardData(
 
   const leases = (leaseRows ?? []) as LeaseWithExtracted[];
   const leaseIds = leases.map((l) => l.id);
+  const propertyByLeaseId = Object.fromEntries(leases.map((l) => [l.id, l.property_name]));
 
-  let alertRows: AlertWithLease[] = [];
+  let alertRows: DashboardAlertSourceRow[] = [];
   if (leaseIds.length > 0) {
     const { data: alerts, error: alertError } = await supabase
       .from("alerts")
@@ -63,8 +63,7 @@ export async function fetchDashboardData(
         event_kind,
         event_date,
         horizon_days,
-        lease_id,
-        leases ( property_name )
+        lease_id
       `,
       )
       .in("lease_id", leaseIds)
@@ -75,7 +74,11 @@ export async function fetchDashboardData(
     if (alertError) {
       throw new Error(alertError.message);
     }
-    alertRows = (alerts ?? []) as AlertWithLease[];
+
+    alertRows = (alerts ?? []).map((a) => ({
+      ...(a as AlertRowRaw),
+      property_name: propertyByLeaseId[(a as AlertRowRaw).lease_id] ?? "Lease",
+    }));
   }
 
   return buildDashboardData(leases, alertRows);

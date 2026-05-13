@@ -2,6 +2,8 @@ import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { fetchDashboardData } from "@/lib/dashboard/fetch-dashboard-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
   const {
