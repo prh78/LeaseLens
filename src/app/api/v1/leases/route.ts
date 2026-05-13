@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { isPropertyType } from "@/lib/lease/property-types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 const STORAGE_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/i;
 
 function isValidLeaseObjectPath(userId: string, storagePath: string): boolean {

@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
 import { validatePdfFile } from "@/lib/lease/validate-pdf";
+import { getPublicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/client";
 import { uploadPdfToSignedUrl } from "@/lib/storage/upload-to-signed-url";
 
@@ -45,14 +46,18 @@ export function LeaseUploadForm() {
 
     const supabase = createClient();
     const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-    if (userError || !user) {
+    if (sessionError || !session?.user || !session.access_token) {
       setError("You must be signed in to upload.");
       return;
     }
+
+    const user = session.user;
+
+    const { NEXT_PUBLIC_SUPABASE_ANON_KEY: apiKey } = getPublicEnv();
 
     const objectName = `${crypto.randomUUID()}.pdf`;
     const storagePath = `${user.id}/${objectName}`;
@@ -71,10 +76,16 @@ export function LeaseUploadForm() {
     }
 
     try {
-      await uploadPdfToSignedUrl(signed.signedUrl, file, (loaded, total) => {
-        if (total > 0) {
-          setProgress(Math.round((loaded / total) * 100));
-        }
+      await uploadPdfToSignedUrl({
+        signedUrl: signed.signedUrl,
+        file,
+        accessToken: session.access_token,
+        apiKey,
+        onProgress: (loaded, total) => {
+          if (total > 0) {
+            setProgress(Math.round((loaded / total) * 100));
+          }
+        },
       });
       setProgress(100);
     } catch (uploadErr) {
@@ -90,6 +101,7 @@ export function LeaseUploadForm() {
     try {
       const response = await fetch("/api/v1/leases", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           propertyName: propertyName.trim(),

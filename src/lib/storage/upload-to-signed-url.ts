@@ -1,12 +1,27 @@
+type UploadPdfToSignedUrlOptions = Readonly<{
+  signedUrl: string;
+  file: File;
+  /** Logged-in user's access token so Storage runs as `authenticated` (query token alone is not enough for RLS). */
+  accessToken: string;
+  /** Same value the Supabase JS client sends as `apikey` (anon / publishable key). */
+  apiKey: string;
+  onProgress?: (loaded: number, total: number) => void;
+}>;
+
 /**
  * PUT upload to a Supabase signed upload URL using multipart/form-data,
  * matching @supabase/storage-js uploadToSignedUrl (Blob branch) so Storage accepts the body.
+ *
+ * Sends `Authorization` and `apikey` like the Supabase client's `fetchWithAuth`, otherwise
+ * the request is effectively anonymous and `storage.objects` policies for `authenticated` fail.
  */
-export function uploadPdfToSignedUrl(
-  signedUrl: string,
-  file: File,
-  onProgress?: (loaded: number, total: number) => void,
-): Promise<void> {
+export function uploadPdfToSignedUrl({
+  signedUrl,
+  file,
+  accessToken,
+  apiKey,
+  onProgress,
+}: UploadPdfToSignedUrlOptions): Promise<void> {
   const formData = new FormData();
   formData.append("cacheControl", "3600");
   formData.append("", file, file.name);
@@ -14,6 +29,8 @@ export function uploadPdfToSignedUrl(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", signedUrl);
+    xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    xhr.setRequestHeader("apikey", apiKey);
 
     xhr.upload.onprogress = (event) => {
       if (!onProgress) {
