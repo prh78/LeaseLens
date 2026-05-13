@@ -102,7 +102,10 @@ export function LeaseUploadForm() {
       const response = await fetch("/api/v1/leases", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           propertyName: propertyName.trim(),
           propertyType,

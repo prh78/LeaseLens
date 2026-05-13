@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isPropertyType } from "@/lib/lease/property-types";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createRouteHandlerSupabaseClient } from "@/lib/supabase/route-handler";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,7 @@ type CreateLeaseBody = {
 };
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createRouteHandlerSupabaseClient(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();
