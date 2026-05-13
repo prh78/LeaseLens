@@ -1,11 +1,23 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { isPropertyType } from "@/lib/lease/property-types";
-import { createRouteHandlerSupabaseClient } from "@/lib/supabase/route-handler";
+import type { Database } from "@/lib/supabase/database.types";
+import { getPublicEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
 const STORAGE_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/i;
+
+function parseBearer(request: Request): string | null {
+  const raw = request.headers.get("authorization") ?? request.headers.get("Authorization");
+  if (!raw) {
+    return null;
+  }
+  const match = /^Bearer\s+(.+)$/i.exec(raw.trim());
+  const token = match?.[1]?.trim();
+  return token || null;
+}
 
 function isValidLeaseObjectPath(userId: string, storagePath: string): boolean {
   const segments = storagePath.split("/").filter(Boolean);
@@ -24,13 +36,35 @@ type CreateLeaseBody = {
   storagePath?: unknown;
 };
 
+/**
+ * Creates a lease row after the PDF is already in Storage.
+ *
+ * Uses `auth.getUser(accessToken)` so the user is verified from the JWT, then inserts with
+ * the service role so PostgREST RLS quirks in Route Handlers cannot block the row.
+ * `user_id` always comes from the verified JWT, never from the client body.
+ */
 export async function POST(request: Request) {
-  const supabase = await createRouteHandlerSupabaseClient(request);
+  const bearer = parseBearer(request);
+  if (!bearer) {
+    return NextResponse.json({ error: "Missing or invalid Authorization header." }, { status: 401 });
+  }
+
+  const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getPublicEnv();
+
+  const authClient = createClient<Database>(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+    error: authError,
+  } = await authClient.auth.getUser(bearer);
 
-  if (!user) {
+  if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -58,7 +92,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid storage path." }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!serviceRole) {
+    return NextResponse.json(
+      {
+        error:
+          "Server configuration: set SUPABASE_SERVICE_ROLE_KEY in .env.local (Supabase Dashboard → Settings → API → service_role secret).",
+      },
+      { status: 503 },
+    );
+  }
+
+  const admin = createClient<Database>(NEXT_PUBLIC_SUPABASE_URL, serviceRole, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const { data, error } = await admin
     .from("leases")
     .insert({
       user_id: user.id,

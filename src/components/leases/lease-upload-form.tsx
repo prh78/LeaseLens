@@ -6,9 +6,7 @@ import { useCallback, useState } from "react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
 import { validatePdfFile } from "@/lib/lease/validate-pdf";
-import { getPublicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/client";
-import { uploadPdfToSignedUrl } from "@/lib/storage/upload-to-signed-url";
 
 const BUCKET = "leases";
 
@@ -17,7 +15,6 @@ export function LeaseUploadForm() {
   const [propertyName, setPropertyName] = useState("");
   const [propertyType, setPropertyType] = useState<string>(PROPERTY_TYPES[0].value);
   const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<"idle" | "uploading" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -57,41 +54,20 @@ export function LeaseUploadForm() {
 
     const user = session.user;
 
-    const { NEXT_PUBLIC_SUPABASE_ANON_KEY: apiKey } = getPublicEnv();
-
     const objectName = `${crypto.randomUUID()}.pdf`;
     const storagePath = `${user.id}/${objectName}`;
 
     setPhase("uploading");
-    setProgress(0);
 
-    const { data: signed, error: signError } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUploadUrl(storagePath);
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(storagePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: "application/pdf",
+    });
 
-    if (signError || !signed?.signedUrl) {
+    if (uploadError) {
       setPhase("idle");
-      setError(signError?.message ?? "Could not start upload.");
-      return;
-    }
-
-    try {
-      await uploadPdfToSignedUrl({
-        signedUrl: signed.signedUrl,
-        file,
-        accessToken: session.access_token,
-        apiKey,
-        onProgress: (loaded, total) => {
-          if (total > 0) {
-            setProgress(Math.round((loaded / total) * 100));
-          }
-        },
-      });
-      setProgress(100);
-    } catch (uploadErr) {
-      setPhase("idle");
-      setProgress(0);
-      setError(uploadErr instanceof Error ? uploadErr.message : "Upload failed.");
+      setError(uploadError.message);
       return;
     }
 
@@ -116,14 +92,12 @@ export function LeaseUploadForm() {
 
       if (!response.ok) {
         setPhase("idle");
-        setProgress(0);
         setError(payload.error ?? "Could not save lease.");
         return;
       }
 
       if (!payload.leaseId) {
         setPhase("idle");
-        setProgress(0);
         setError("Missing lease id from server.");
         return;
       }
@@ -131,7 +105,6 @@ export function LeaseUploadForm() {
       leaseId = payload.leaseId;
     } catch {
       setPhase("idle");
-      setProgress(0);
       setError("Could not save lease (network error).");
       return;
     }
@@ -197,17 +170,16 @@ export function LeaseUploadForm() {
       </div>
 
       {phase !== "idle" ? (
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs font-medium text-slate-600">
-            <span>{phase === "uploading" ? "Uploading file…" : "Saving lease…"}</span>
-            <span>{progress}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-            <div
-              className="h-full rounded-full bg-slate-900 transition-[width] duration-150 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+        <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-medium text-slate-600">
+          <span
+            className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900"
+            aria-hidden
+          />
+          <span>
+            {phase === "uploading"
+              ? "Uploading PDF to secure storage…"
+              : "Saving lease record…"}
+          </span>
         </div>
       ) : null}
 
