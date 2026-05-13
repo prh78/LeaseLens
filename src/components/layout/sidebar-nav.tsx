@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Overview" },
+  { href: "/upload", label: "Upload" },
   { href: "/dashboard/settings", label: "Settings" },
 ];
 
@@ -28,7 +29,12 @@ export function SidebarNav({ variant = "sidebar" }: SidebarNavProps) {
       ) : null}
       {NAV_ITEMS.map((item) => {
         const isOverview = item.href === "/dashboard";
-        const isActive = isOverview ? pathname === "/dashboard" : pathname.startsWith(item.href);
+        const isUpload = item.href === "/upload";
+        const isActive = isOverview
+          ? pathname === "/dashboard"
+          : isUpload
+            ? pathname.startsWith("/upload")
+            : pathname.startsWith(item.href);
 
         const base =
           "rounded-lg text-sm font-medium transition whitespace-nowrap " +

@@ -3,11 +3,11 @@ import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-type DashboardLayoutProps = Readonly<{
+type DashboardGroupLayoutProps = Readonly<{
   children: React.ReactNode;
 }>;
 
-export default async function DashboardLayout({ children }: DashboardLayoutProps) {
+export default async function DashboardGroupLayout({ children }: DashboardGroupLayoutProps) {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
