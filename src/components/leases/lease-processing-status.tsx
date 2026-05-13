@@ -141,7 +141,7 @@ export function LeaseProcessingStatus() {
   const statusLabel: Record<ExtractionStatus, string> = {
     pending: "Queued — starting text extraction.",
     processing: "Reading your PDF and extracting text…",
-    complete: "Text extraction finished. You can open the lease from your dashboard.",
+    complete: "Text extraction finished. Open the lease detail page to review dates and clauses.",
     failed: "Extraction failed. Try uploading again or contact support.",
   };
 
@@ -164,10 +164,10 @@ export function LeaseProcessingStatus() {
 
       {lease.extraction_status === "complete" ? (
         <Link
-          href="/dashboard"
+          href={`/lease/${lease.id}`}
           className="inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
         >
-          Go to dashboard
+          View lease detail
         </Link>
       ) : null}
 
