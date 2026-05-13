@@ -23,3 +23,5 @@ export async function createServerSupabaseClient() {
     },
   });
 }
+
+export type LeaseLensServerClient = Awaited<ReturnType<typeof createServerSupabaseClient>>;
