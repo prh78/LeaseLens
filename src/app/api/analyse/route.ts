@@ -82,6 +82,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "leaseId is required." }, { status: 400 });
   }
 
+  if (!process.env.OPENAI_API_KEY?.trim()) {
+    return NextResponse.json(
+      {
+        error:
+          "OPENAI_API_KEY is not set. Add it to .env.local (see .env.example) and restart the dev server.",
+      },
+      { status: 503 },
+    );
+  }
+
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!serviceRole) {
     return NextResponse.json(
