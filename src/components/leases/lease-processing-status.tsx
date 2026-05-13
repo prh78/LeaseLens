@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ExtractionStatus } from "@/lib/supabase/database.types";
@@ -11,6 +11,7 @@ type LeaseRow = {
   id: string;
   property_name: string;
   extraction_status: ExtractionStatus;
+  extraction_error: string | null;
 };
 
 const POLL_MS = 3000;
@@ -21,6 +22,7 @@ export function LeaseProcessingStatus() {
 
   const [lease, setLease] = useState<LeaseRow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const extractKickoffDone = useRef(false);
 
   const fetchLease = useCallback(async () => {
     if (!leaseId) {
@@ -30,7 +32,7 @@ export function LeaseProcessingStatus() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("leases")
-      .select("id, property_name, extraction_status")
+      .select("id, property_name, extraction_status, extraction_error")
       .eq("id", leaseId)
       .maybeSingle();
 
@@ -49,11 +51,48 @@ export function LeaseProcessingStatus() {
   }, [leaseId]);
 
   useEffect(() => {
+    extractKickoffDone.current = false;
+  }, [leaseId]);
+
+  useEffect(() => {
     if (!leaseId) {
       return;
     }
     void fetchLease();
   }, [leaseId, fetchLease]);
+
+  useEffect(() => {
+    if (!leaseId || !lease || lease.extraction_status !== "pending" || extractKickoffDone.current) {
+      return;
+    }
+
+    extractKickoffDone.current = true;
+
+    void (async () => {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        extractKickoffDone.current = false;
+        return;
+      }
+
+      try {
+        await fetch("/api/extract", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ leaseId }),
+        });
+      } finally {
+        void fetchLease();
+      }
+    })();
+  }, [lease, leaseId, fetchLease]);
 
   useEffect(() => {
     if (!leaseId || !lease) {
@@ -100,9 +139,9 @@ export function LeaseProcessingStatus() {
   }
 
   const statusLabel: Record<ExtractionStatus, string> = {
-    pending: "Queued — we will start extraction shortly.",
-    processing: "Extracting key dates and clauses from your PDF…",
-    complete: "Extraction finished. You can open the lease from your dashboard.",
+    pending: "Queued — starting text extraction.",
+    processing: "Reading your PDF and extracting text…",
+    complete: "Text extraction finished. You can open the lease from your dashboard.",
     failed: "Extraction failed. Try uploading again or contact support.",
   };
 
@@ -130,6 +169,12 @@ export function LeaseProcessingStatus() {
         >
           Go to dashboard
         </Link>
+      ) : null}
+
+      {lease.extraction_status === "failed" && lease.extraction_error ? (
+        <p className="rounded-lg border border-red-100 bg-red-50/80 px-3 py-2 text-sm text-red-800">
+          {lease.extraction_error}
+        </p>
       ) : null}
 
       {lease.extraction_status === "failed" ? (

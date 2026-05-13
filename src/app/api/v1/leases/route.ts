@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { isPropertyType } from "@/lib/lease/property-types";
 import type { Database } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
@@ -8,16 +9,6 @@ import { getPublicEnv } from "@/lib/env";
 export const dynamic = "force-dynamic";
 
 const STORAGE_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/i;
-
-function parseBearer(request: Request): string | null {
-  const raw = request.headers.get("authorization") ?? request.headers.get("Authorization");
-  if (!raw) {
-    return null;
-  }
-  const match = /^Bearer\s+(.+)$/i.exec(raw.trim());
-  const token = match?.[1]?.trim();
-  return token || null;
-}
 
 function isValidLeaseObjectPath(userId: string, storagePath: string): boolean {
   const segments = storagePath.split("/").filter(Boolean);
@@ -44,7 +35,7 @@ type CreateLeaseBody = {
  * `user_id` always comes from the verified JWT, never from the client body.
  */
 export async function POST(request: Request) {
-  const bearer = parseBearer(request);
+  const bearer = parseBearerFromRequest(request);
   if (!bearer) {
     return NextResponse.json({ error: "Missing or invalid Authorization header." }, { status: 401 });
   }

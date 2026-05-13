@@ -7,6 +7,7 @@ loadEnvConfig(process.cwd());
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  serverExternalPackages: ["pdf-parse"],
 };
 
 export default nextConfig;

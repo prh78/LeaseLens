@@ -17,6 +17,7 @@ export type Database = {
           upload_date: string;
           extraction_status: ExtractionStatus;
           overall_risk: OverallRisk;
+          extraction_error: string | null;
         };
         Insert: {
           id?: string;
@@ -27,6 +28,7 @@ export type Database = {
           upload_date?: string;
           extraction_status?: ExtractionStatus;
           overall_risk?: OverallRisk;
+          extraction_error?: string | null;
         };
         Update: {
           id?: string;
@@ -37,6 +39,7 @@ export type Database = {
           upload_date?: string;
           extraction_status?: ExtractionStatus;
           overall_risk?: OverallRisk;
+          extraction_error?: string | null;
         };
         Relationships: [];
       };
@@ -54,6 +57,7 @@ export type Database = {
           vacant_possession_required: boolean | null;
           confidence_score: number | null;
           source_snippets: Json;
+          raw_text: string | null;
         };
         Insert: {
           lease_id: string;
@@ -68,6 +72,7 @@ export type Database = {
           vacant_possession_required?: boolean | null;
           confidence_score?: number | null;
           source_snippets?: Json;
+          raw_text?: string | null;
         };
         Update: {
           lease_id?: string;
@@ -82,6 +87,7 @@ export type Database = {
           vacant_possession_required?: boolean | null;
           confidence_score?: number | null;
           source_snippets?: Json;
+          raw_text?: string | null;
         };
         Relationships: [];
       };
