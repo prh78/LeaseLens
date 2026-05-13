@@ -58,6 +58,9 @@ export type Database = {
           confidence_score: number | null;
           source_snippets: Json;
           raw_text: string | null;
+          conditional_break_clause: string | null;
+          ambiguous_language: boolean | null;
+          manual_review_recommended: boolean | null;
         };
         Insert: {
           lease_id: string;
@@ -73,6 +76,9 @@ export type Database = {
           confidence_score?: number | null;
           source_snippets?: Json;
           raw_text?: string | null;
+          conditional_break_clause?: string | null;
+          ambiguous_language?: boolean | null;
+          manual_review_recommended?: boolean | null;
         };
         Update: {
           lease_id?: string;
@@ -88,6 +94,9 @@ export type Database = {
           confidence_score?: number | null;
           source_snippets?: Json;
           raw_text?: string | null;
+          conditional_break_clause?: string | null;
+          ambiguous_language?: boolean | null;
+          manual_review_recommended?: boolean | null;
         };
         Relationships: [];
       };
