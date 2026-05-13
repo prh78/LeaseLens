@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+import { syncLeaseAlerts } from "@/lib/alerts/sync-lease-alerts";
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import type { LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
 import { analyseLeaseTextWithOpenAI } from "@/lib/lease/openai-analyse";
@@ -184,6 +185,12 @@ export async function POST(request: Request) {
 
   if (upsertError) {
     return NextResponse.json({ error: upsertError.message, leaseId }, { status: 500 });
+  }
+
+  try {
+    await syncLeaseAlerts(admin, leaseId);
+  } catch (syncCause) {
+    console.error("syncLeaseAlerts failed:", syncCause);
   }
 
   return NextResponse.json({

@@ -107,6 +107,9 @@ export type Database = {
           alert_type: string;
           trigger_date: string;
           sent_status: AlertSentStatus;
+          event_kind: string | null;
+          event_date: string | null;
+          horizon_days: number | null;
         };
         Insert: {
           id?: string;
@@ -114,6 +117,9 @@ export type Database = {
           alert_type: string;
           trigger_date: string;
           sent_status?: AlertSentStatus;
+          event_kind?: string | null;
+          event_date?: string | null;
+          horizon_days?: number | null;
         };
         Update: {
           id?: string;
@@ -121,6 +127,9 @@ export type Database = {
           alert_type?: string;
           trigger_date?: string;
           sent_status?: AlertSentStatus;
+          event_kind?: string | null;
+          event_date?: string | null;
+          horizon_days?: number | null;
         };
         Relationships: [];
       };
