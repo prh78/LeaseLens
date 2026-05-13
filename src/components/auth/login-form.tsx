@@ -2,12 +2,22 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 import { AuthMessage } from "@/components/auth/auth-message";
 import { createClient } from "@/lib/supabase/client";
 
-export function LoginForm() {
+function LoginFormFallback() {
+  return (
+    <div className="space-y-4" aria-busy="true">
+      <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
+      <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
+      <div className="h-10 animate-pulse rounded-lg bg-slate-900/20" />
+    </div>
+  );
+}
+
+function LoginFormFields() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectedFrom = searchParams.get("redirectedFrom") ?? "/dashboard";
@@ -89,5 +99,13 @@ export function LoginForm() {
         </Link>
       </div>
     </form>
+  );
+}
+
+export function LoginForm() {
+  return (
+    <Suspense fallback={<LoginFormFallback />}>
+      <LoginFormFields />
+    </Suspense>
   );
 }
