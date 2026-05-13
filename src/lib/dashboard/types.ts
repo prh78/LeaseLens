@@ -1,0 +1,30 @@
+import type { ExtractionStatus, OverallRisk } from "@/lib/supabase/database.types";
+
+/** One row for the portfolio table (client-safe / serializable). */
+export type DashboardLeaseRow = Readonly<{
+  id: string;
+  propertyName: string;
+  nextCriticalAction: string;
+  daysRemaining: number | null;
+  riskLevel: OverallRisk;
+  extractionStatus: ExtractionStatus;
+}>;
+
+export type DashboardMetrics = Readonly<{
+  totalLeases: number;
+  criticalActionsDue: number;
+  highRiskLeases: number;
+}>;
+
+export type DashboardAlertRow = Readonly<{
+  id: string;
+  title: string;
+  dueLabel: string;
+  severity: "info" | "warning" | "critical";
+}>;
+
+export type DashboardData = Readonly<{
+  metrics: DashboardMetrics;
+  leases: DashboardLeaseRow[];
+  alerts: DashboardAlertRow[];
+}>;
