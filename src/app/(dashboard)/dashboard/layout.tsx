@@ -17,5 +17,5 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     redirect("/login");
   }
 
-  return <DashboardShell>{children}</DashboardShell>;
+  return <DashboardShell userEmail={user.email}>{children}</DashboardShell>;
 }
