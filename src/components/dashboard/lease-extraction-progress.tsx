@@ -54,7 +54,7 @@ export function LeaseExtractionProgress({ status }: LeaseExtractionProgressProps
   const activeIndex = active === null || active < 0 ? 0 : active;
 
   return (
-    <div className="flex min-w-[9rem] flex-col gap-1.5">
+    <div className="relative flex min-w-[9rem] flex-col gap-1.5 rounded-lg px-1 py-0.5 motion-safe:animate-extraction-aura">
       <div
         className="flex items-center gap-0.5"
         role="list"
@@ -67,7 +67,7 @@ export function LeaseExtractionProgress({ status }: LeaseExtractionProgressProps
             <Fragment key={step.id}>
               {i > 0 ? (
                 <span
-                  className={`h-px w-1.5 shrink-0 ${done || current ? "bg-sky-200" : "bg-slate-200"}`}
+                  className={`h-px w-1.5 shrink-0 transition-colors ${done || current ? "bg-sky-200" : "bg-slate-200"}`}
                   aria-hidden
                 />
               ) : null}
@@ -78,7 +78,7 @@ export function LeaseExtractionProgress({ status }: LeaseExtractionProgressProps
                   done
                     ? "bg-emerald-500"
                     : current
-                      ? "bg-sky-500 ring-2 ring-sky-300 ring-offset-1 ring-offset-white"
+                      ? "bg-sky-500 ring-2 ring-sky-300/80 ring-offset-1 ring-offset-white motion-safe:animate-extraction-dot-glow"
                       : "bg-slate-200"
                 }`}
               />
