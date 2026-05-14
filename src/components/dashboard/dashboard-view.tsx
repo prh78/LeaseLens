@@ -3,17 +3,20 @@ import Link from "next/link";
 import { LeasePortfolioTable } from "@/components/dashboard/lease-portfolio-table";
 import { MetricStatCard } from "@/components/dashboard/metric-stat-card";
 import { UpcomingAlertsPanel } from "@/components/dashboard/upcoming-alerts-panel";
+import { DashboardLeasePipeline } from "@/components/leases/dashboard-lease-pipeline";
 import type { DashboardData } from "@/lib/dashboard/types";
 
 type DashboardViewProps = Readonly<{
   data: DashboardData;
+  pipelineLeaseIds: string[];
 }>;
 
-export function DashboardView({ data }: DashboardViewProps) {
+export function DashboardView({ data, pipelineLeaseIds }: DashboardViewProps) {
   const { metrics, leases, alerts } = data;
 
   return (
     <div className="space-y-8">
+      <DashboardLeasePipeline pipelineLeaseIds={pipelineLeaseIds} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
         <p className="mt-1 text-sm text-slate-600">Portfolio overview from your Supabase data.</p>

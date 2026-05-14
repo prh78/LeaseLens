@@ -20,8 +20,9 @@ const riskStyles: Record<
 };
 
 const extractionStyles: Record<ExtractionStatus, { label: string; className: string }> = {
-  pending: { label: "Pending", className: "text-slate-600" },
-  processing: { label: "Processing", className: "text-sky-700" },
+  uploading: { label: "Uploading", className: "text-slate-600" },
+  extracting: { label: "Extracting", className: "text-sky-700" },
+  analysing: { label: "Analysing", className: "text-violet-700" },
   complete: { label: "Ready", className: "text-emerald-700" },
   failed: { label: "Failed", className: "text-red-700" },
 };

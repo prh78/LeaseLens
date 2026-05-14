@@ -13,7 +13,7 @@ export function needsStructuredAnalyse(
   extractionStatus: Tables<"leases">["extraction_status"],
   extracted: AnalyseGateRow | null,
 ): boolean {
-  if (extractionStatus !== "complete" || !extracted) {
+  if ((extractionStatus !== "analysing" && extractionStatus !== "complete") || !extracted) {
     return false;
   }
   const raw = extracted.raw_text;

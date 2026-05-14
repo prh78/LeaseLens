@@ -122,7 +122,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This lease has no file in storage." }, { status: 400 });
   }
 
-  if (!force && lease.extraction_status === "complete") {
+  if (lease.extraction_status === "uploading") {
+    return NextResponse.json({ error: "Lease file is not attached yet." }, { status: 400 });
+  }
+
+  if (!force && lease.extraction_status === "failed") {
+    return NextResponse.json(
+      { error: "Extraction previously failed. Pass force: true to retry.", leaseId },
+      { status: 409 },
+    );
+  }
+
+  const cacheableAfterText =
+    lease.extraction_status === "complete" || lease.extraction_status === "analysing";
+
+  if (!force && cacheableAfterText) {
     const { data: existingRow, error: existingErr } = await admin
       .from("extracted_data")
       .select("raw_text")
@@ -138,7 +152,7 @@ export async function POST(request: Request) {
       const { text, truncated, storedLength } = truncateForResponse(cached);
       return NextResponse.json({
         leaseId,
-        extractionStatus: "complete" as const,
+        extractionStatus: lease.extraction_status,
         text,
         textTruncatedInResponse: truncated,
         storedCharacterCount: storedLength,
@@ -149,14 +163,11 @@ export async function POST(request: Request) {
     }
   }
 
-  const { error: processingErr } = await admin
-    .from("leases")
-    .update({ extraction_status: "processing", extraction_error: null })
-    .eq("id", leaseId)
-    .eq("user_id", user.id);
-
-  if (processingErr) {
-    return NextResponse.json({ error: processingErr.message }, { status: 500 });
+  if (!force && lease.extraction_status !== "extracting") {
+    return NextResponse.json(
+      { error: `Cannot extract while status is ${lease.extraction_status}.` },
+      { status: 409 },
+    );
   }
 
   try {
@@ -207,7 +218,7 @@ export async function POST(request: Request) {
 
     const { error: doneErr } = await admin
       .from("leases")
-      .update({ extraction_status: "complete", extraction_error: null })
+      .update({ extraction_status: "analysing", extraction_error: null })
       .eq("id", leaseId)
       .eq("user_id", user.id);
 
@@ -219,7 +230,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       leaseId,
-      extractionStatus: "complete" as const,
+      extractionStatus: "analysing" as const,
       text,
       textTruncatedInResponse: truncated,
       storedCharacterCount: storedLength,

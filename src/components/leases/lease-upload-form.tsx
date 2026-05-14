@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 
 import { AuthMessage } from "@/components/auth/auth-message";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
+import { leasePdfStoragePath } from "@/lib/lease/lease-storage-path";
 import { validatePdfFile } from "@/lib/lease/validate-pdf";
 import { createClient } from "@/lib/supabase/client";
 
@@ -15,7 +16,7 @@ export function LeaseUploadForm() {
   const [propertyName, setPropertyName] = useState("");
   const [propertyType, setPropertyType] = useState<string>(PROPERTY_TYPES[0].value);
   const [file, setFile] = useState<File | null>(null);
-  const [phase, setPhase] = useState<"idle" | "uploading" | "saving">("idle");
+  const [phase, setPhase] = useState<"idle" | "saving" | "uploading" | "attaching">("idle");
   const [error, setError] = useState<string | null>(null);
 
   const busy = phase !== "idle";
@@ -54,23 +55,6 @@ export function LeaseUploadForm() {
 
     const user = session.user;
 
-    const objectName = `${crypto.randomUUID()}.pdf`;
-    const storagePath = `${user.id}/${objectName}`;
-
-    setPhase("uploading");
-
-    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(storagePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType: "application/pdf",
-    });
-
-    if (uploadError) {
-      setPhase("idle");
-      setError(uploadError.message);
-      return;
-    }
-
     setPhase("saving");
 
     let leaseId: string;
@@ -85,7 +69,6 @@ export function LeaseUploadForm() {
         body: JSON.stringify({
           propertyName: propertyName.trim(),
           propertyType,
-          storagePath,
         }),
       });
       const payload = (await response.json()) as { leaseId?: string; error?: string };
@@ -109,8 +92,49 @@ export function LeaseUploadForm() {
       return;
     }
 
+    const storagePath = leasePdfStoragePath(user.id, leaseId);
+
+    setPhase("uploading");
+
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(storagePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: "application/pdf",
+    });
+
+    if (uploadError) {
+      setPhase("idle");
+      setError(uploadError.message);
+      return;
+    }
+
+    setPhase("attaching");
+
+    try {
+      const attachRes = await fetch(`/api/v1/leases/${encodeURIComponent(leaseId)}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ storagePath }),
+      });
+      const attachPayload = (await attachRes.json()) as { error?: string };
+
+      if (!attachRes.ok) {
+        setPhase("idle");
+        setError(attachPayload.error ?? "Could not attach file to lease.");
+        return;
+      }
+    } catch {
+      setPhase("idle");
+      setError("Could not attach file (network error).");
+      return;
+    }
+
     setPhase("idle");
-    router.push(`/upload/processing?lease_id=${encodeURIComponent(leaseId)}`);
+    router.push("/dashboard");
     router.refresh();
   };
 
@@ -176,9 +200,11 @@ export function LeaseUploadForm() {
             aria-hidden
           />
           <span>
-            {phase === "uploading"
-              ? "Uploading PDF to secure storage…"
-              : "Saving lease record…"}
+            {phase === "saving"
+              ? "Creating lease record…"
+              : phase === "uploading"
+                ? "Uploading PDF to secure storage…"
+                : "Linking file to lease…"}
           </span>
         </div>
       ) : null}

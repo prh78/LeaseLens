@@ -33,6 +33,13 @@ function applyConservativeOverrides(data: LeaseAnalyseOutput): LeaseAnalyseOutpu
   };
 }
 
+function truncateError(message: string, max = 2000): string {
+  if (message.length <= max) {
+    return message;
+  }
+  return `${message.slice(0, max)}…`;
+}
+
 /**
  * POST /api/analyse
  *
@@ -155,6 +162,13 @@ export async function POST(request: Request) {
     attemptsUsed = result.attemptsUsed;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "OpenAI analyse failed.";
+    const safe = truncateError(message);
+    await admin
+      .from("leases")
+      .update({ extraction_status: "failed", extraction_error: safe })
+      .eq("id", leaseId)
+      .eq("user_id", user.id);
+
     return NextResponse.json({ error: message, leaseId }, { status: 502 });
   }
 
@@ -184,7 +198,23 @@ export async function POST(request: Request) {
   });
 
   if (upsertError) {
+    await admin
+      .from("leases")
+      .update({ extraction_status: "failed", extraction_error: truncateError(upsertError.message) })
+      .eq("id", leaseId)
+      .eq("user_id", user.id);
+
     return NextResponse.json({ error: upsertError.message, leaseId }, { status: 500 });
+  }
+
+  const { error: leaseDoneErr } = await admin
+    .from("leases")
+    .update({ extraction_status: "complete", extraction_error: null })
+    .eq("id", leaseId)
+    .eq("user_id", user.id);
+
+  if (leaseDoneErr) {
+    return NextResponse.json({ error: leaseDoneErr.message, leaseId }, { status: 500 });
   }
 
   try {

@@ -8,31 +8,15 @@ import { getPublicEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
-const STORAGE_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/i;
-
-function isValidLeaseObjectPath(userId: string, storagePath: string): boolean {
-  const segments = storagePath.split("/").filter(Boolean);
-  if (segments.length !== 2) {
-    return false;
-  }
-  if (segments[0] !== userId) {
-    return false;
-  }
-  return STORAGE_PATH.test(segments[1]);
-}
-
 type CreateLeaseBody = {
   propertyName?: unknown;
   propertyType?: unknown;
-  storagePath?: unknown;
 };
 
 /**
- * Creates a lease row after the PDF is already in Storage.
- *
- * Uses `auth.getUser(accessToken)` so the user is verified from the JWT, then inserts with
- * the service role so PostgREST RLS quirks in Route Handlers cannot block the row.
- * `user_id` always comes from the verified JWT, never from the client body.
+ * Creates a lease row **before** the PDF is attached (`uploading`).
+ * Client uploads to `{userId}/{leaseId}.pdf`, then calls
+ * `PATCH /api/v1/leases/:leaseId` with `{ "storagePath": "…" }` to attach and move to `extracting`.
  */
 export async function POST(request: Request) {
   const bearer = parseBearerFromRequest(request);
@@ -69,7 +53,6 @@ export async function POST(request: Request) {
   const propertyName =
     typeof body.propertyName === "string" ? body.propertyName.trim() : "";
   const propertyType = typeof body.propertyType === "string" ? body.propertyType : "";
-  const storagePath = typeof body.storagePath === "string" ? body.storagePath.trim() : "";
 
   if (!propertyName || propertyName.length > 500) {
     return NextResponse.json({ error: "Property name is required (max 500 characters)." }, { status: 400 });
@@ -77,10 +60,6 @@ export async function POST(request: Request) {
 
   if (!isPropertyType(propertyType)) {
     return NextResponse.json({ error: "Invalid property type." }, { status: 400 });
-  }
-
-  if (!storagePath || !isValidLeaseObjectPath(user.id, storagePath)) {
-    return NextResponse.json({ error: "Invalid storage path." }, { status: 400 });
   }
 
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -108,8 +87,8 @@ export async function POST(request: Request) {
       user_id: user.id,
       property_name: propertyName,
       property_type: propertyType,
-      file_url: storagePath,
-      extraction_status: "pending",
+      file_url: null,
+      extraction_status: "uploading",
     })
     .select("id")
     .single();
@@ -118,5 +97,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ leaseId: data.id });
+  return NextResponse.json({ leaseId: data.id, extractionStatus: "uploading" as const });
 }

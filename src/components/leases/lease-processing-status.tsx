@@ -57,7 +57,7 @@ export function LeaseProcessingStatus() {
     setLoadError(null);
     setLease(data);
 
-    if (data.extraction_status === "complete" && leaseId) {
+    if ((data.extraction_status === "analysing" || data.extraction_status === "complete") && leaseId) {
       const { data: ed } = await supabase
         .from("extracted_data")
         .select("raw_text, ambiguous_language, manual_review_recommended")
@@ -81,7 +81,7 @@ export function LeaseProcessingStatus() {
   }, [leaseId, fetchLease]);
 
   useEffect(() => {
-    if (!leaseId || !lease || lease.extraction_status !== "pending" || extractKickoffDone.current) {
+    if (!leaseId || !lease || lease.extraction_status !== "extracting" || extractKickoffDone.current) {
       return;
     }
 
@@ -140,8 +140,8 @@ export function LeaseProcessingStatus() {
       !leaseId ||
       !loadedLeaseId ||
       loadedLeaseId !== leaseId ||
-      leaseExtractStatus !== "complete" ||
-      !needsStructured
+      !needsStructured ||
+      (leaseExtractStatus !== "analysing" && leaseExtractStatus !== "complete")
     ) {
       return;
     }
@@ -213,15 +213,17 @@ export function LeaseProcessingStatus() {
   }
 
   const statusLabel: Record<ExtractionStatus, string> = {
-    pending: "Queued — starting text extraction.",
-    processing: "Reading your PDF and extracting text…",
-    complete:
-      needsStructured || analysePhase === "running"
-        ? "Text extraction finished. Running AI structured extraction for dates and clauses…"
+    uploading: "Lease record created — attach the PDF from upload if you have not finished.",
+    extracting: "Reading your PDF and extracting text…",
+    analysing: "Structured AI analysis running for dates and clauses…",
+    complete: needsStructured
+      ? "Text ready — finishing structured extraction…"
+      : analysePhase === "running"
+        ? "Running AI structured extraction for dates and clauses…"
         : analysePhase === "error"
-          ? "Text extraction finished. Structured extraction encountered an error (see below)."
-          : "Text extraction and structured analysis finished. Open the lease detail page to review dates and clauses.",
-    failed: "Extraction failed. Try uploading again or contact support.",
+          ? "Structured extraction encountered an error (see below)."
+          : "All processing finished. Open the lease detail page to review.",
+    failed: "Processing failed. Try uploading again or contact support.",
   };
 
   return (
@@ -231,7 +233,9 @@ export function LeaseProcessingStatus() {
         <p className="mt-2 text-sm text-slate-600">{statusLabel[lease.extraction_status]}</p>
       </div>
 
-      {lease.extraction_status === "pending" || lease.extraction_status === "processing" ? (
+      {lease.extraction_status === "uploading" ||
+      lease.extraction_status === "extracting" ||
+      lease.extraction_status === "analysing" ? (
         <div className="flex items-center gap-3 text-sm text-slate-500">
           <span
             className="inline-block size-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900"
@@ -241,7 +245,8 @@ export function LeaseProcessingStatus() {
         </div>
       ) : null}
 
-      {lease.extraction_status === "complete" && analysePhase === "running" ? (
+      {(lease.extraction_status === "analysing" || lease.extraction_status === "complete") &&
+      analysePhase === "running" ? (
         <div className="flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50/90 px-4 py-3 text-sm text-sky-950">
           <span
             className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-sky-300 border-t-sky-800"
@@ -251,7 +256,9 @@ export function LeaseProcessingStatus() {
         </div>
       ) : null}
 
-      {lease.extraction_status === "complete" && analysePhase === "error" && analyseError ? (
+      {(lease.extraction_status === "analysing" || lease.extraction_status === "complete") &&
+      analysePhase === "error" &&
+      analyseError ? (
         <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <p className="font-medium">Structured extraction failed.</p>
           <p className="text-amber-900/90">{analyseError}</p>
@@ -270,7 +277,7 @@ export function LeaseProcessingStatus() {
         </div>
       ) : null}
 
-      {lease.extraction_status === "complete" ? (
+      {lease.extraction_status === "complete" && !needsStructured ? (
         <Link
           href={`/lease/${lease.id}`}
           className="inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"

@@ -16,5 +16,9 @@ export default async function DashboardPage() {
 
   const data = await fetchDashboardData(supabase, user.id);
 
-  return <DashboardView data={data} />;
+  const pipelineLeaseIds = data.leases
+    .filter((l) => l.extractionStatus === "uploading" || l.extractionStatus === "extracting" || l.extractionStatus === "analysing")
+    .map((l) => l.id);
+
+  return <DashboardView data={data} pipelineLeaseIds={pipelineLeaseIds} />;
 }

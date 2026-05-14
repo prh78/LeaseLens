@@ -1,6 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type ExtractionStatus = "pending" | "processing" | "complete" | "failed";
+export type ExtractionStatus = "uploading" | "extracting" | "analysing" | "complete" | "failed";
 export type OverallRisk = "low" | "medium" | "high" | "critical";
 export type AlertSentStatus = "pending" | "sent" | "skipped" | "failed";
 

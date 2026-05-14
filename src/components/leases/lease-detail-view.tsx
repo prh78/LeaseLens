@@ -37,9 +37,10 @@ function overallRiskDisplay(risk: OverallRisk): { level: "low" | "medium" | "hig
 
 function extractionStatusPill(status: ExtractionStatus): { label: string; className: string } {
   const map: Record<ExtractionStatus, { label: string; className: string }> = {
-    pending: { label: "Pending", className: "bg-slate-100 text-slate-800 border-slate-200" },
-    processing: { label: "Processing", className: "bg-sky-50 text-sky-900 border-sky-200" },
-    complete: { label: "Extracted", className: "bg-emerald-50 text-emerald-900 border-emerald-200" },
+    uploading: { label: "Uploading", className: "bg-slate-100 text-slate-800 border-slate-200" },
+    extracting: { label: "Extracting", className: "bg-sky-50 text-sky-900 border-sky-200" },
+    analysing: { label: "Analysing", className: "bg-violet-50 text-violet-900 border-violet-200" },
+    complete: { label: "Complete", className: "bg-emerald-50 text-emerald-900 border-emerald-200" },
     failed: { label: "Failed", className: "bg-red-50 text-red-900 border-red-200" },
   };
   return map[status];
@@ -164,7 +165,7 @@ export function LeaseDetailView({ lease, extracted }: LeaseDetailViewProps) {
         >
           {lease.extraction_status === "failed" ? (
             <>
-              <p className="font-medium">Text extraction did not complete.</p>
+              <p className="font-medium">Lease processing failed.</p>
               {lease.extraction_error ? (
                 <p className="mt-2 text-red-900/90">{lease.extraction_error}</p>
               ) : null}
@@ -172,20 +173,30 @@ export function LeaseDetailView({ lease, extracted }: LeaseDetailViewProps) {
                 <Link href="/upload" className="font-semibold underline underline-offset-2">
                   Upload again
                 </Link>{" "}
-                or return to the{" "}
-                <Link href={`/upload/processing?lease_id=${lease.id}`} className="font-semibold underline underline-offset-2">
-                  processing page
+                or open the{" "}
+                <Link href="/dashboard" className="font-semibold underline underline-offset-2">
+                  dashboard
                 </Link>
                 .
               </p>
             </>
+          ) : lease.extraction_status === "uploading" ? (
+            <p>Lease record is being created and the PDF is attaching to storage.</p>
+          ) : lease.extraction_status === "extracting" ? (
+            <p>
+              Reading your PDF and extracting text. You can stay on this page or return to the{" "}
+              <Link href="/dashboard" className="font-semibold underline underline-offset-2">
+                dashboard
+              </Link>{" "}
+              — processing continues in the background.
+            </p>
           ) : (
             <p>
-              Extraction is still in progress.{" "}
-              <Link href={`/upload/processing?lease_id=${lease.id}`} className="font-semibold underline underline-offset-2">
-                Open processing status
-              </Link>
-              .
+              Running structured AI analysis on the lease text. You can return to the{" "}
+              <Link href="/dashboard" className="font-semibold underline underline-offset-2">
+                dashboard
+              </Link>{" "}
+              while this finishes.
             </p>
           )}
         </div>
