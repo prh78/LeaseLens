@@ -18,8 +18,8 @@ export function extractedRowToNextActionInput(row: Tables<"extracted_data">): Ex
 }
 
 /**
- * Next critical action: denormalised columns when the lease is complete, otherwise
- * computed from `extracted_data` when present (matches dashboard behaviour).
+ * Next critical action: computed from `extracted_data` when present (same inputs as lease detail).
+ * Falls back to denormalised `leases.next_action_*` only when there is no extracted row.
  */
 export function effectiveLeaseNextAction(
   lease: Tables<"leases">,

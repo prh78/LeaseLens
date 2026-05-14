@@ -8,8 +8,7 @@ type LeaseWithExtracted = Tables<"leases"> & {
 };
 
 /**
- * Loads the signed-in user's leases (with extracted milestones) and builds dashboard data
- * including denormalised next-action fields when present.
+ * Loads the signed-in user's leases (with extracted milestones used for next-action computation).
  */
 export async function fetchDashboardData(
   supabase: LeaseLensServerClient,
@@ -36,6 +35,7 @@ export async function fetchDashboardData(
       extracted_data (
         expiry_date,
         break_dates,
+        break_clause_status,
         notice_period_days,
         rent_review_dates,
         ambiguous_language,
