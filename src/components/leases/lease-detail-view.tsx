@@ -4,6 +4,7 @@ import { LeaseChangeHistory } from "@/components/leases/lease-change-history";
 import { LeaseDetailEmptyHint, LeaseDetailSection } from "@/components/leases/lease-detail-section";
 import { LeaseDocumentConflicts } from "@/components/leases/lease-document-conflicts";
 import { LeaseDocumentTimeline } from "@/components/leases/lease-document-timeline";
+import { LeaseManagementPanel } from "@/components/leases/lease-management-panel";
 import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
 import { RiskBadge } from "@/components/leases/risk-badge";
 import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
@@ -195,6 +196,12 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
           </div>
         ) : null}
       </div>
+
+      <LeaseManagementPanel
+        leaseId={lease.id}
+        initialPropertyName={lease.property_name}
+        supplementalCount={documents.filter((d) => d.document_type !== "primary_lease").length}
+      />
 
       {lease.extraction_status !== "complete" ? (
         <div
