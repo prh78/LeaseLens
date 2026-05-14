@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
-import { isValidLeasePdfStoragePath } from "@/lib/lease/lease-storage-path";
+import { isValidLeaseDocumentPdfStoragePath, isValidLeasePdfStoragePath } from "@/lib/lease/lease-storage-path";
 import type { Database } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
 import { leaseExtractionStatusConstraintHint } from "@/lib/supabase/lease-schema-errors";
@@ -100,6 +100,42 @@ export async function PATCH(request: Request, context: { params: Promise<{ lease
       { error: `Lease is not awaiting file attachment (status: ${row.extraction_status}).` },
       { status: 409 },
     );
+  }
+
+  const { data: primaryDoc, error: primaryErr } = await admin
+    .from("lease_documents")
+    .select("id")
+    .eq("lease_id", leaseId)
+    .eq("document_type", "primary_lease")
+    .maybeSingle();
+
+  if (primaryErr) {
+    return NextResponse.json({ error: primaryErr.message }, { status: 500 });
+  }
+
+  if (!primaryDoc) {
+    return NextResponse.json({ error: "Primary lease document row is missing." }, { status: 500 });
+  }
+
+  const pathOk =
+    isValidLeaseDocumentPdfStoragePath(user.id, leaseId, primaryDoc.id, storagePath) ||
+    isValidLeasePdfStoragePath(user.id, leaseId, storagePath);
+
+  if (!storagePath || !pathOk) {
+    return NextResponse.json({ error: "Invalid storage path for this lease." }, { status: 400 });
+  }
+
+  const { error: docUpdErr } = await admin
+    .from("lease_documents")
+    .update({
+      file_url: storagePath,
+      processing_status: "extracting_text",
+    })
+    .eq("id", primaryDoc.id)
+    .eq("lease_id", leaseId);
+
+  if (docUpdErr) {
+    return NextResponse.json({ error: docUpdErr.message }, { status: 500 });
   }
 
   const { error: updErr } = await admin

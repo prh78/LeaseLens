@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 
 import { AuthMessage } from "@/components/auth/auth-message";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
-import { leasePdfStoragePath } from "@/lib/lease/lease-storage-path";
+import { leaseDocumentPdfStoragePath, leasePdfStoragePath } from "@/lib/lease/lease-storage-path";
 import { validatePdfFile } from "@/lib/lease/validate-pdf";
 import { createClient } from "@/lib/supabase/client";
 
@@ -58,6 +58,7 @@ export function LeaseUploadForm() {
     setPhase("saving");
 
     let leaseId: string;
+    let primaryLeaseDocumentId: string | undefined;
     try {
       const response = await fetch("/api/v1/leases", {
         method: "POST",
@@ -71,7 +72,11 @@ export function LeaseUploadForm() {
           propertyType,
         }),
       });
-      const payload = (await response.json()) as { leaseId?: string; error?: string };
+      const payload = (await response.json()) as {
+        leaseId?: string;
+        primaryLeaseDocumentId?: string;
+        error?: string;
+      };
 
       if (!response.ok) {
         setPhase("idle");
@@ -86,13 +91,16 @@ export function LeaseUploadForm() {
       }
 
       leaseId = payload.leaseId;
+      primaryLeaseDocumentId = payload.primaryLeaseDocumentId;
     } catch {
       setPhase("idle");
       setError("Could not save lease (network error).");
       return;
     }
 
-    const storagePath = leasePdfStoragePath(user.id, leaseId);
+    const storagePath = primaryLeaseDocumentId
+      ? leaseDocumentPdfStoragePath(user.id, leaseId, primaryLeaseDocumentId)
+      : leasePdfStoragePath(user.id, leaseId);
 
     setPhase("uploading");
 

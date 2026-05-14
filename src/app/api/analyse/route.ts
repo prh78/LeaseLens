@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
@@ -5,7 +7,10 @@ import { syncLeaseAlerts } from "@/lib/alerts/sync-lease-alerts";
 import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import type { LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
+import { mergeStructuredLeaseFields, parseSupersedesFields } from "@/lib/lease/merge-structured-lease-fields";
 import { analyseLeaseTextWithOpenAI } from "@/lib/lease/openai-analyse";
+import { sortLeaseDocumentsForExtraction } from "@/lib/lease/sort-lease-documents-for-extraction";
+import { extractTextFromPdfBuffer } from "@/lib/pdf/extract-text";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
 
@@ -169,6 +174,11 @@ export async function POST(request: Request) {
       .update({ extraction_status: "failed", extraction_error: safe })
       .eq("id", leaseId)
       .eq("user_id", user.id);
+    await admin
+      .from("lease_documents")
+      .update({ processing_status: "failed" })
+      .eq("lease_id", leaseId)
+      .eq("processing_status", "analysing");
 
     try {
       await syncLeaseNextAction(admin, leaseId);
@@ -179,25 +189,85 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message, leaseId }, { status: 502 });
   }
 
+  let mergedStructured = structured;
+
+  const { data: supplementalRows, error: supErr } = await admin
+    .from("lease_documents")
+    .select("id, document_type, file_url, upload_date, supersedes_fields")
+    .eq("lease_id", leaseId)
+    .neq("document_type", "primary_lease")
+    .not("file_url", "is", null);
+
+  if (!supErr && supplementalRows?.length) {
+    const ordered = sortLeaseDocumentsForExtraction(supplementalRows);
+    for (const row of ordered) {
+      const keys = parseSupersedesFields(row.supersedes_fields);
+      if (keys.length === 0 || !row.file_url) {
+        continue;
+      }
+
+      try {
+        const { data: blob, error: dlErr } = await admin.storage.from("leases").download(row.file_url);
+        if (dlErr || !blob) {
+          throw new Error(dlErr?.message ?? "Supplemental download failed.");
+        }
+        const buf = Buffer.from(await blob.arrayBuffer());
+        const { text: docText } = await extractTextFromPdfBuffer(buf);
+        const docTrimmed = docText.trim();
+        const slice =
+          docTrimmed.length > MAX_LEASE_TEXT_CHARS ? docTrimmed.slice(0, MAX_LEASE_TEXT_CHARS) : docTrimmed;
+        const supResult = await analyseLeaseTextWithOpenAI(slice);
+        mergedStructured = mergeStructuredLeaseFields(
+          mergedStructured,
+          applyConservativeOverrides(supResult.data),
+          keys,
+        );
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : "Supplemental analyse failed.";
+        const safe = truncateError(message);
+        await admin
+          .from("leases")
+          .update({ extraction_status: "failed", extraction_error: safe })
+          .eq("id", leaseId)
+          .eq("user_id", user.id);
+        await admin
+          .from("lease_documents")
+          .update({ processing_status: "failed" })
+          .eq("lease_id", leaseId)
+          .eq("processing_status", "analysing");
+
+        try {
+          await syncLeaseNextAction(admin, leaseId);
+        } catch (syncCause) {
+          console.error("syncLeaseNextAction failed:", syncCause);
+        }
+
+        return NextResponse.json({ error: message, leaseId }, { status: 502 });
+      }
+    }
+  }
+
+  mergedStructured = applyConservativeOverrides(mergedStructured);
+
   const preservedRaw = extractedRow?.raw_text ?? (rawTextOverride ? rawTextOverride : null);
 
   const upsertRow = {
     lease_id: leaseId,
     raw_text: preservedRaw,
-    commencement_date: structured.commencement_date,
-    expiry_date: structured.expiry_date,
-    break_dates: structured.break_dates as unknown as Json,
-    notice_period_days: structured.notice_period_days,
-    rent_review_dates: structured.rent_review_dates as unknown as Json,
-    repairing_obligation: nullIfEmpty(structured.repairing_obligation),
-    service_charge_responsibility: nullIfEmpty(structured.service_charge_responsibility),
-    reinstatement_required: structured.reinstatement_required,
-    vacant_possession_required: structured.vacant_possession_required,
-    conditional_break_clause: nullIfEmpty(structured.conditional_break_clause),
-    ambiguous_language: structured.ambiguous_language,
-    manual_review_recommended: structured.manual_review_recommended,
-    confidence_score: structured.confidence_score,
-    source_snippets: structured.source_snippets as unknown as Json,
+    commencement_date: mergedStructured.commencement_date,
+    expiry_date: mergedStructured.expiry_date,
+    break_dates: mergedStructured.break_dates as unknown as Json,
+    notice_period_days: mergedStructured.notice_period_days,
+    rent_review_dates: mergedStructured.rent_review_dates as unknown as Json,
+    repairing_obligation: nullIfEmpty(mergedStructured.repairing_obligation),
+    service_charge_responsibility: nullIfEmpty(mergedStructured.service_charge_responsibility),
+    reinstatement_required: mergedStructured.reinstatement_required,
+    vacant_possession_required: mergedStructured.vacant_possession_required,
+    conditional_break_clause: nullIfEmpty(mergedStructured.conditional_break_clause),
+    ambiguous_language: mergedStructured.ambiguous_language,
+    manual_review_recommended: mergedStructured.manual_review_recommended,
+    confidence_score: mergedStructured.confidence_score,
+    source_snippets: mergedStructured.source_snippets as unknown as Json,
   };
 
   const { error: upsertError } = await admin.from("extracted_data").upsert(upsertRow, {
@@ -210,6 +280,11 @@ export async function POST(request: Request) {
       .update({ extraction_status: "failed", extraction_error: truncateError(upsertError.message) })
       .eq("id", leaseId)
       .eq("user_id", user.id);
+    await admin
+      .from("lease_documents")
+      .update({ processing_status: "failed" })
+      .eq("lease_id", leaseId)
+      .eq("processing_status", "analysing");
 
     try {
       await syncLeaseNextAction(admin, leaseId);
@@ -252,9 +327,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: leaseDoneErr.message, leaseId }, { status: 500 });
   }
 
+  await admin
+    .from("lease_documents")
+    .update({ processing_status: "complete" })
+    .eq("lease_id", leaseId)
+    .eq("processing_status", "analysing");
+
   return NextResponse.json({
     leaseId,
     attemptsUsed,
-    ...structured,
+    ...mergedStructured,
   });
 }

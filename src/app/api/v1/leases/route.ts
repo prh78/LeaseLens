@@ -16,8 +16,10 @@ type CreateLeaseBody = {
 
 /**
  * Creates a lease row **before** the PDF is attached (`uploading`).
- * Client uploads to `{userId}/{leaseId}.pdf`, then calls
- * `PATCH /api/v1/leases/:leaseId` with `{ "storagePath": "…" }` to attach and move to `extracting`.
+ * Inserts the primary `lease_documents` row. Client uploads to
+ * `{userId}/{leaseId}/{primaryLeaseDocumentId}.pdf` (or legacy `{userId}/{leaseId}.pdf` if the server
+ * omits `primaryLeaseDocumentId`), then calls `PATCH /api/v1/leases/:leaseId` with `{ "storagePath": "…" }`
+ * to attach and move to `extracting`.
  */
 export async function POST(request: Request) {
   const bearer = parseBearerFromRequest(request);
@@ -99,5 +101,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: hint ?? error.message }, { status: hint ? 503 : 500 });
   }
 
-  return NextResponse.json({ leaseId: data.id, extractionStatus: "uploading" as const });
+  const { data: primaryDoc, error: docError } = await admin
+    .from("lease_documents")
+    .insert({
+      lease_id: data.id,
+      document_type: "primary_lease",
+      file_url: null,
+      processing_status: "uploading",
+      supersedes_fields: [],
+    })
+    .select("id")
+    .single();
+
+  if (docError || !primaryDoc) {
+    await admin.from("leases").delete().eq("id", data.id);
+    return NextResponse.json(
+      { error: docError?.message ?? "Could not create primary lease document row." },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    leaseId: data.id,
+    primaryLeaseDocumentId: primaryDoc.id,
+    extractionStatus: "uploading" as const,
+  });
 }

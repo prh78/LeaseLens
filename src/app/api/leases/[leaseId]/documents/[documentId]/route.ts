@@ -3,20 +3,20 @@ import { NextResponse } from "next/server";
 import { isValidUserLeaseStorageObjectPath } from "@/lib/lease/lease-storage-path";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-const LEASE_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const SIGNED_URL_TTL_SEC = 3600;
 
 type RouteContext = Readonly<{
-  params: Promise<{ leaseId: string }>;
+  params: Promise<{ leaseId: string; documentId: string }>;
 }>;
 
+/** Signed URL for any `lease_documents` row (primary or supplemental). */
 export async function GET(_request: Request, context: RouteContext) {
-  const { leaseId } = await context.params;
+  const { leaseId, documentId } = await context.params;
 
-  if (!LEASE_ID_RE.test(leaseId)) {
-    return NextResponse.json({ error: "Invalid lease id" }, { status: 400 });
+  if (!UUID.test(leaseId) || !UUID.test(documentId)) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
   const supabase = await createServerSupabaseClient();
@@ -29,20 +29,24 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: primaryDoc, error: docErr } = await supabase
+  const { data: doc, error: docError } = await supabase
     .from("lease_documents")
-    .select("file_url")
+    .select("file_url, lease_id")
+    .eq("id", documentId)
     .eq("lease_id", leaseId)
-    .eq("document_type", "primary_lease")
     .maybeSingle();
 
-  if (docErr) {
-    return NextResponse.json({ error: docErr.message }, { status: 500 });
+  if (docError) {
+    return NextResponse.json({ error: docError.message }, { status: 500 });
+  }
+
+  if (!doc?.file_url) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const { data: lease, error: leaseError } = await supabase
     .from("leases")
-    .select("file_url")
+    .select("id")
     .eq("id", leaseId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -51,18 +55,14 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const storagePath = primaryDoc?.file_url?.trim() || lease.file_url?.trim() || null;
-  if (!storagePath) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  if (!isValidUserLeaseStorageObjectPath(user.id, leaseId, storagePath)) {
+  const path = doc.file_url.trim();
+  if (!isValidUserLeaseStorageObjectPath(user.id, leaseId, path)) {
     return NextResponse.json({ error: "Invalid document path" }, { status: 400 });
   }
 
   const { data: signed, error: signError } = await supabase.storage
     .from("leases")
-    .createSignedUrl(storagePath, SIGNED_URL_TTL_SEC);
+    .createSignedUrl(path, SIGNED_URL_TTL_SEC);
 
   if (signError || !signed?.signedUrl) {
     console.error("lease document signed URL:", signError?.message);

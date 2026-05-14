@@ -12,6 +12,23 @@ export type LeaseNextActionType = "break_notice_deadline" | "rent_review" | "lea
 export type LeaseNextActionUrgency = "low" | "medium" | "high" | "critical";
 export type AlertSentStatus = "pending" | "sent" | "skipped" | "failed";
 
+export type LeaseDocumentType =
+  | "primary_lease"
+  | "deed_of_variation"
+  | "lease_extension"
+  | "side_letter"
+  | "licence_to_alter"
+  | "rent_review_memorandum"
+  | "assignment";
+
+export type LeaseDocumentProcessingStatus =
+  | "pending"
+  | "uploading"
+  | "extracting_text"
+  | "analysing"
+  | "complete"
+  | "failed";
+
 export type Database = {
   public: {
     Tables: {
@@ -60,6 +77,36 @@ export type Database = {
           next_action_date?: string | null;
           next_action_days_remaining?: number | null;
           next_action_urgency?: LeaseNextActionUrgency | null;
+        };
+        Relationships: [];
+      };
+      lease_documents: {
+        Row: {
+          id: string;
+          lease_id: string;
+          document_type: LeaseDocumentType;
+          file_url: string | null;
+          upload_date: string;
+          processing_status: LeaseDocumentProcessingStatus;
+          supersedes_fields: Json;
+        };
+        Insert: {
+          id?: string;
+          lease_id: string;
+          document_type: LeaseDocumentType;
+          file_url?: string | null;
+          upload_date?: string;
+          processing_status?: LeaseDocumentProcessingStatus;
+          supersedes_fields?: Json;
+        };
+        Update: {
+          id?: string;
+          lease_id?: string;
+          document_type?: LeaseDocumentType;
+          file_url?: string | null;
+          upload_date?: string;
+          processing_status?: LeaseDocumentProcessingStatus;
+          supersedes_fields?: Json;
         };
         Relationships: [];
       };

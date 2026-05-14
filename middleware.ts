@@ -14,6 +14,7 @@ export const config = {
     "/api/analyse",
     "/api/extract",
     "/api/leases/:path*",
+    "/api/v1/leases/:path*",
     "/login",
     "/signup",
     "/forgot-password",
