@@ -13,6 +13,7 @@ export const config = {
     "/lease/:path*",
     "/api/analyse",
     "/api/extract",
+    "/api/leases/:path*",
     "/login",
     "/signup",
     "/forgot-password",
