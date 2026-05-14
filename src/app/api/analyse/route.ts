@@ -53,6 +53,16 @@ function truncateError(message: string, max = 2000): string {
   return `${message.slice(0, max)}…`;
 }
 
+/** PostgREST when DB is behind migration `20260521130000_lease_detail_audit_columns.sql`. */
+function isMissingExtractedAuditColumnError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("schema cache") ||
+    (m.includes("could not find") &&
+      (m.includes("change_history") || m.includes("field_provenance") || m.includes("document_conflicts")))
+  );
+}
+
 /**
  * POST /api/analyse
  *
@@ -286,7 +296,7 @@ export async function POST(request: Request) {
 
   const preservedRaw = extractedRow?.raw_text ?? (rawTextOverride ? rawTextOverride : null);
 
-  const upsertRow = {
+  const coreUpsertRow: Database["public"]["Tables"]["extracted_data"]["Insert"] = {
     lease_id: leaseId,
     raw_text: preservedRaw,
     commencement_date: mergedStructured.commencement_date,
@@ -303,14 +313,23 @@ export async function POST(request: Request) {
     manual_review_recommended: mergedStructured.manual_review_recommended,
     confidence_score: mergedStructured.confidence_score,
     source_snippets: mergedStructured.source_snippets as unknown as Json,
+  };
+
+  const fullUpsertRow: Database["public"]["Tables"]["extracted_data"]["Insert"] = {
+    ...coreUpsertRow,
     field_provenance: provenanceMutable as unknown as Json,
     change_history: changeAudit as unknown as Json,
     document_conflicts: conflictAudit as unknown as Json,
   };
 
-  const { error: upsertError } = await admin.from("extracted_data").upsert(upsertRow, {
-    onConflict: "lease_id",
-  });
+  let upsertError = (await admin.from("extracted_data").upsert(fullUpsertRow, { onConflict: "lease_id" })).error;
+
+  if (upsertError && isMissingExtractedAuditColumnError(upsertError.message)) {
+    console.warn(
+      "[analyse] extracted_data audit columns missing from database; apply migration 20260521130000_lease_detail_audit_columns.sql. Saving structured fields without provenance / change history / conflicts.",
+    );
+    upsertError = (await admin.from("extracted_data").upsert(coreUpsertRow, { onConflict: "lease_id" })).error;
+  }
 
   if (upsertError) {
     await admin
