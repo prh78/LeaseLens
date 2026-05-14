@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { syncLeaseAlerts } from "@/lib/alerts/sync-lease-alerts";
@@ -98,6 +99,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (cause) {
     console.error("syncLeaseAlerts after break status:", cause);
   }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/lease/${leaseId}`);
 
   return NextResponse.json({ leaseId, break_clause_status: next });
 }

@@ -82,6 +82,21 @@ function noticeDays(value: number | null): number | null {
   return n >= 1 ? n : null;
 }
 
+/**
+ * Calendar date (UTC date-only) by which notice must be served for this break,
+ * matching tier-1 next-action logic: break date minus notice period, or the break date if no period.
+ */
+export function breakNoticeDeadlineIso(breakIso: string, noticePeriodDays: number | null): string | null {
+  if (!validDateIso(breakIso)) {
+    return null;
+  }
+  const n = noticeDays(noticePeriodDays);
+  if (n !== null) {
+    return subtractCalendarDays(breakIso, n) ?? breakIso;
+  }
+  return breakIso;
+}
+
 function tier1NoticeIsos(extracted: ExtractedForNextAction): string[] {
   const n = noticeDays(extracted.notice_period_days);
   const statusMap = parseBreakClauseStatusMap(extracted.break_clause_status ?? null);

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { DashboardLeasePortfolio } from "@/components/dashboard/dashboard-lease-portfolio";
 import { DashboardEmptyOnboarding } from "@/components/dashboard/dashboard-empty-onboarding";
 import { DashboardProcessingRefresh } from "@/components/dashboard/dashboard-processing-refresh";
+import { DashboardVisibilityRefresh } from "@/components/dashboard/dashboard-visibility-refresh";
 import { DashboardReviewQueue } from "@/components/dashboard/dashboard-review-queue";
 import { MetricStatCard } from "@/components/dashboard/metric-stat-card";
 import { DashboardLeasePipeline } from "@/components/leases/dashboard-lease-pipeline";
@@ -21,6 +22,7 @@ export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: D
   return (
     <div className="space-y-8">
       <DashboardProcessingRefresh enabled={hasProcessingLeases} />
+      <DashboardVisibilityRefresh />
       <DashboardLeasePipeline pipelineLeaseIds={pipelineLeaseIds} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
