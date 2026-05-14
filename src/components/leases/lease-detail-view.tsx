@@ -6,6 +6,7 @@ import { LeaseDocumentConflicts } from "@/components/leases/lease-document-confl
 import { LeaseDocumentTimeline } from "@/components/leases/lease-document-timeline";
 import { LeaseManagementPanel } from "@/components/leases/lease-management-panel";
 import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
+import { LeaseReviewActions } from "@/components/leases/lease-review-actions";
 import { RiskBadge } from "@/components/leases/risk-badge";
 import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
@@ -17,7 +18,13 @@ import {
 } from "@/lib/lease/lease-detail-json";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
 import { LEASE_DOCUMENT_TYPE_LABEL } from "@/lib/lease/lease-document-types";
-import type { ExtractionStatus, LeaseNextActionUrgency, OverallRisk, Tables } from "@/lib/supabase/database.types";
+import type {
+  ExtractionStatus,
+  LeaseNextActionUrgency,
+  LeaseReviewStatus,
+  OverallRisk,
+  Tables,
+} from "@/lib/supabase/database.types";
 
 const nextActionUrgencyStyles: Record<
   LeaseNextActionUrgency,
@@ -69,6 +76,28 @@ function extractionStatusPill(status: ExtractionStatus): { label: string; classN
   return map[status];
 }
 
+function verificationStatusPill(status: LeaseReviewStatus): { label: string; className: string } {
+  const map: Record<LeaseReviewStatus, { label: string; className: string }> = {
+    not_required: {
+      label: "Verification not required",
+      className: "bg-slate-50 text-slate-700 border-slate-200",
+    },
+    needs_review: {
+      label: "Needs review",
+      className: "bg-amber-50 text-amber-950 border-amber-200",
+    },
+    verified: {
+      label: "Verified",
+      className: "bg-emerald-50 text-emerald-900 border-emerald-200",
+    },
+    unresolved: {
+      label: "Unresolved",
+      className: "bg-orange-50 text-orange-950 border-orange-200",
+    },
+  };
+  return map[status];
+}
+
 const documentPdfLinkClassName =
   "inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/5 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
 
@@ -87,6 +116,7 @@ function PdfGlyph() {
 export function LeaseDetailView({ lease, extracted, nextAction, documents }: LeaseDetailViewProps) {
   const risk = overallRiskDisplay(lease.overall_risk);
   const statusPill = extractionStatusPill(lease.extraction_status);
+  const verificationPill = verificationStatusPill(lease.review_status);
   const uploadLabel = new Date(lease.upload_date).toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
@@ -168,6 +198,16 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
           <p className="mt-2 text-sm text-slate-600">
             {propertyTypeLabel(lease.property_type)} · Uploaded {uploadLabel}
           </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
+            <span
+              className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold ${verificationPill.className}`}
+            >
+              {verificationPill.label}
+            </span>
+            {lease.extraction_status === "complete" && lease.review_status === "needs_review" ? (
+              <LeaseReviewActions leaseId={lease.id} />
+            ) : null}
+          </div>
         </div>
         {canViewPrimary || supplementalDocumentsWithFile.length > 0 ? (
           <div className="flex shrink-0 flex-col items-stretch gap-2 sm:max-w-md sm:items-end sm:pt-1">

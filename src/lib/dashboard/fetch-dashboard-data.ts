@@ -28,6 +28,10 @@ export async function fetchDashboardData(
       next_action_date,
       next_action_days_remaining,
       next_action_urgency,
+      review_status,
+      review_priority,
+      review_reason,
+      review_affected_fields,
       extracted_data (
         expiry_date,
         break_dates,

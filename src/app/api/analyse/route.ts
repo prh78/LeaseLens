@@ -14,6 +14,8 @@ import {
   type DocumentConflictEntry,
   type FieldProvenanceEntry,
 } from "@/lib/lease/lease-detail-audit";
+import { computeLeaseReviewSnapshot } from "@/lib/lease/compute-lease-review-snapshot";
+import { parseFieldExtractionMeta } from "@/lib/lease/field-extraction-meta";
 import { mergeStructuredLeaseFields, parseSupersedesFields } from "@/lib/lease/merge-structured-lease-fields";
 import { analyseLeaseTextWithOpenAI } from "@/lib/lease/openai-analyse";
 import { sortLeaseDocumentsForExtraction } from "@/lib/lease/sort-lease-documents-for-extraction";
@@ -388,9 +390,25 @@ export async function POST(request: Request) {
     console.error("syncLeaseNextAction failed:", syncCause);
   }
 
+  const fieldMeta = parseFieldExtractionMeta(mergedStructured.field_extraction_meta as Json);
+  const reviewSnapshot = computeLeaseReviewSnapshot({
+    manualReviewRecommended: mergedStructured.manual_review_recommended,
+    ambiguousLanguage: mergedStructured.ambiguous_language,
+    confidenceScore: mergedStructured.confidence_score,
+    documentConflicts: conflictAudit,
+    fieldExtractionMeta: fieldMeta,
+  });
+
   const { error: leaseDoneErr } = await admin
     .from("leases")
-    .update({ extraction_status: "complete", extraction_error: null })
+    .update({
+      extraction_status: "complete",
+      extraction_error: null,
+      review_status: reviewSnapshot.review_status,
+      review_priority: reviewSnapshot.review_priority,
+      review_reason: reviewSnapshot.review_reason,
+      review_affected_fields: [...reviewSnapshot.review_affected_fields] as unknown as Json,
+    })
     .eq("id", leaseId)
     .eq("user_id", user.id);
 

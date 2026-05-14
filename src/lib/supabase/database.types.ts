@@ -29,6 +29,10 @@ export type LeaseDocumentProcessingStatus =
   | "complete"
   | "failed";
 
+/** Human verification workflow on `leases.review_status`. */
+export type LeaseReviewStatus = "not_required" | "needs_review" | "verified" | "unresolved";
+export type LeaseReviewPriority = "low" | "medium" | "high";
+
 export type Database = {
   public: {
     Tables: {
@@ -47,6 +51,10 @@ export type Database = {
           next_action_date: string | null;
           next_action_days_remaining: number | null;
           next_action_urgency: LeaseNextActionUrgency | null;
+          review_status: LeaseReviewStatus;
+          review_priority: LeaseReviewPriority | null;
+          review_reason: string | null;
+          review_affected_fields: Json;
         };
         Insert: {
           id?: string;
@@ -62,6 +70,10 @@ export type Database = {
           next_action_date?: string | null;
           next_action_days_remaining?: number | null;
           next_action_urgency?: LeaseNextActionUrgency | null;
+          review_status?: LeaseReviewStatus;
+          review_priority?: LeaseReviewPriority | null;
+          review_reason?: string | null;
+          review_affected_fields?: Json;
         };
         Update: {
           id?: string;
@@ -77,6 +89,10 @@ export type Database = {
           next_action_date?: string | null;
           next_action_days_remaining?: number | null;
           next_action_urgency?: LeaseNextActionUrgency | null;
+          review_status?: LeaseReviewStatus;
+          review_priority?: LeaseReviewPriority | null;
+          review_reason?: string | null;
+          review_affected_fields?: Json;
         };
         Relationships: [];
       };

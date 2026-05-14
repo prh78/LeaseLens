@@ -7,8 +7,14 @@ import {
 import { effectiveLeaseNextAction, extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
 import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
-import type { DashboardData, DashboardLeaseRow, DashboardMetrics, DashboardUpcomingActionItem } from "@/lib/dashboard/types";
-import type { Tables } from "@/lib/supabase/database.types";
+import type {
+  DashboardData,
+  DashboardLeaseRow,
+  DashboardMetrics,
+  DashboardReviewQueueItem,
+  DashboardUpcomingActionItem,
+} from "@/lib/dashboard/types";
+import type { Json, LeaseReviewPriority, Tables } from "@/lib/supabase/database.types";
 
 type LeaseWithExtracted = Tables<"leases"> & {
   extracted_data: Tables<"extracted_data"> | Tables<"extracted_data">[] | null;
@@ -20,6 +26,23 @@ function normalizedExtracted(row: LeaseWithExtracted): Tables<"extracted_data"> 
     return null;
   }
   return Array.isArray(ed) ? ed[0] ?? null : ed;
+}
+
+function reviewAffectedFieldsFromDb(raw: Json): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.filter((x): x is string => typeof x === "string");
+}
+
+function reviewPriorityRank(p: LeaseReviewPriority): number {
+  if (p === "high") {
+    return 0;
+  }
+  if (p === "medium") {
+    return 1;
+  }
+  return 2;
 }
 
 function severityFromUrgency(level: LeaseNextActionResult["urgency_level"]): DashboardUpcomingActionItem["severity"] {
@@ -53,6 +76,8 @@ function resultToUpcomingItem(r: LeaseNextActionResult): DashboardUpcomingAction
 }
 
 export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardData {
+  const pendingReviews = leaseRows.filter((row) => row.review_status === "needs_review").length;
+
   const metrics: DashboardMetrics = {
     totalLeases: leaseRows.length,
     criticalActionsDue: leaseRows.filter((row) => {
@@ -63,6 +88,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
       return isLeaseCriticalActionDue(effectiveLeaseNextAction(row, extracted));
     }).length,
     highRiskLeases: leaseRows.filter((row) => row.overall_risk === "high").length,
+    pendingReviews,
   };
 
   const leases: DashboardLeaseRow[] = leaseRows.map((row) => {
@@ -84,6 +110,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
         urgencyLevel: null,
         riskLevel: row.overall_risk,
         extractionStatus: row.extraction_status,
+        reviewStatus: row.review_status,
         allActionsInPriorityOrder: [],
       };
     }
@@ -105,9 +132,30 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
       urgencyLevel: next?.urgency_level ?? null,
       riskLevel: row.overall_risk,
       extractionStatus: row.extraction_status,
+      reviewStatus: row.review_status,
       allActionsInPriorityOrder: allActionsInPriorityOrder,
     };
   });
 
-  return { metrics, leases };
+  const reviewQueue: DashboardReviewQueueItem[] = leaseRows
+    .filter((row) => row.review_status === "needs_review")
+    .map((row) => {
+      const pr: LeaseReviewPriority = row.review_priority ?? "low";
+      return {
+        leaseId: row.id,
+        propertyName: row.property_name,
+        affectedFields: reviewAffectedFieldsFromDb(row.review_affected_fields),
+        reason: row.review_reason,
+        priority: pr,
+      };
+    })
+    .sort((a, b) => {
+      const pr = reviewPriorityRank(a.priority) - reviewPriorityRank(b.priority);
+      if (pr !== 0) {
+        return pr;
+      }
+      return a.propertyName.localeCompare(b.propertyName, undefined, { sensitivity: "base" });
+    });
+
+  return { metrics, leases, reviewQueue };
 }

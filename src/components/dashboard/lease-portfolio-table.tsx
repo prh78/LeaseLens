@@ -8,7 +8,7 @@ import { LeaseExtractionProgress } from "@/components/dashboard/lease-extraction
 import type { DashboardLeaseRow, DashboardUpcomingActionItem } from "@/lib/dashboard/types";
 import { formatIsoDate } from "@/lib/lease/lease-detail";
 import type { LeaseTermStatus } from "@/lib/lease/lease-term-status";
-import type { LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
+import type { LeaseNextActionUrgency, LeaseReviewStatus, OverallRisk } from "@/lib/supabase/database.types";
 
 const NO_LEASE_NAV = "[data-no-lease-nav]";
 
@@ -48,6 +48,25 @@ const termStyles: Record<LeaseTermStatus, { label: string; className: string }> 
   active: { label: "Active", className: "bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200/80" },
   expired: { label: "Expired", className: "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200" },
   unknown: { label: "Unknown", className: "bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200/90" },
+};
+
+const verificationStyles: Record<LeaseReviewStatus, { label: string; className: string }> = {
+  not_required: {
+    label: "Not required",
+    className: "bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/90",
+  },
+  needs_review: {
+    label: "Needs review",
+    className: "bg-amber-50 text-amber-950 ring-1 ring-inset ring-amber-200/80",
+  },
+  verified: {
+    label: "Verified",
+    className: "bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200/80",
+  },
+  unresolved: {
+    label: "Unresolved",
+    className: "bg-orange-50 text-orange-950 ring-1 ring-inset ring-orange-200/80",
+  },
 };
 
 function ChevronIcon({ open }: Readonly<{ open: boolean }>) {
@@ -107,6 +126,7 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-5 py-3 font-medium">Property name</th>
+                <th className="px-5 py-3 font-medium">Verification</th>
                 <th className="px-5 py-3 font-medium">Term</th>
                 <th className="px-5 py-3 font-medium">Lease expiry</th>
                 <th className="px-5 py-3 font-medium">Next critical action</th>
@@ -124,6 +144,7 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                   lease.urgencyLevel != null ? urgencyStyles[lease.urgencyLevel] : null;
                 const href = `/lease/${lease.id}`;
                 const term = termStyles[lease.termStatus];
+                const verification = verificationStyles[lease.reviewStatus];
                 const isExpired = lease.termStatus === "expired";
                 const expiryLabel = formatIsoDate(lease.expiryDate);
 
@@ -177,6 +198,13 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                       <td className="whitespace-nowrap px-5 py-3.5 font-medium text-slate-900">
                         <span className="text-slate-900 underline decoration-slate-300 underline-offset-2">
                           {lease.propertyName}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-3.5 align-top">
+                        <span
+                          className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${verification.className}`}
+                        >
+                          {verification.label}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 align-top">
@@ -248,7 +276,7 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                     </tr>
                     {expandable && open ? (
                       <tr className="bg-slate-50/60">
-                        <td colSpan={9} className="px-5 py-3" data-no-lease-nav>
+                        <td colSpan={10} className="px-5 py-3" data-no-lease-nav>
                           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Further actions (priority order)
                           </p>

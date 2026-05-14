@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DashboardEmptyOnboarding } from "@/components/dashboard/dashboard-empty-onboarding";
 import { DashboardProcessingRefresh } from "@/components/dashboard/dashboard-processing-refresh";
+import { DashboardReviewQueue } from "@/components/dashboard/dashboard-review-queue";
 import { LeasePortfolioTable } from "@/components/dashboard/lease-portfolio-table";
 import { MetricStatCard } from "@/components/dashboard/metric-stat-card";
 import { DashboardLeasePipeline } from "@/components/leases/dashboard-lease-pipeline";
@@ -32,7 +33,7 @@ export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: D
         <DashboardEmptyOnboarding />
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-3">
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricStatCard
               label="Total leases"
               value={metrics.totalLeases}
@@ -50,7 +51,15 @@ export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: D
               hint="Overall risk marked high"
               accent="warning"
             />
+            <MetricStatCard
+              label="Pending reviews"
+              value={metrics.pendingReviews}
+              hint="Leases flagged after extraction and awaiting verification"
+              accent={metrics.pendingReviews > 0 ? "warning" : "default"}
+            />
           </section>
+
+          <DashboardReviewQueue items={data.reviewQueue} />
 
           <LeasePortfolioTable leases={leases} />
 
