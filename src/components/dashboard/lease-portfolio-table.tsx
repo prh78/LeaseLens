@@ -5,9 +5,8 @@ import { Fragment, useCallback, useState, type KeyboardEvent, type MouseEvent } 
 import { useRouter } from "next/navigation";
 
 import { LeaseExtractionProgress } from "@/components/dashboard/lease-extraction-progress";
-import { UrgencyBadge } from "@/components/dashboard/urgency-badge";
 import type { DashboardLeaseRow, DashboardUpcomingActionItem } from "@/lib/dashboard/types";
-import type { OverallRisk } from "@/lib/supabase/database.types";
+import type { LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
 
 const NO_LEASE_NAV = "[data-no-lease-nav]";
 
@@ -25,6 +24,16 @@ const riskStyles: Record<
     label: "Critical",
     className: "bg-red-50 text-red-900 ring-1 ring-inset ring-red-200/80",
   },
+};
+
+const urgencyStyles: Record<
+  LeaseNextActionUrgency,
+  { label: string; className: string }
+> = {
+  low: { label: "Low", className: "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200" },
+  medium: { label: "Medium", className: "bg-sky-50 text-sky-900 ring-1 ring-inset ring-sky-200/80" },
+  high: { label: "High", className: "bg-amber-50 text-amber-950 ring-1 ring-inset ring-amber-200/80" },
+  critical: { label: "Critical", className: "bg-red-50 text-red-950 ring-1 ring-inset ring-red-200/80" },
 };
 
 const severityDot: Record<DashboardUpcomingActionItem["severity"], string> = {
@@ -100,7 +109,8 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
             <tbody className="divide-y divide-slate-100">
               {leases.map((lease) => {
                 const risk = riskStyles[lease.riskLevel];
-                const showUrgency = lease.urgencyLevel != null;
+                const urg =
+                  lease.urgencyLevel != null ? urgencyStyles[lease.urgencyLevel] : null;
                 const href = `/lease/${lease.id}`;
 
                 const go = () => {
@@ -189,7 +199,15 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                         {lease.daysRemaining === null ? "—" : lease.daysRemaining}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5">
-                        {showUrgency ? <UrgencyBadge level={lease.urgencyLevel} /> : <span className="text-slate-400">—</span>}
+                        {urg ? (
+                          <span
+                            className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${urg.className}`}
+                          >
+                            {urg.label}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5">
                         <span

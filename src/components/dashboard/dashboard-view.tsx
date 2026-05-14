@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { DashboardProcessingRefresh } from "@/components/dashboard/dashboard-processing-refresh";
-import { LeaseDeadlineAlerts } from "@/components/dashboard/lease-deadline-alerts";
 import { LeasePortfolioTable } from "@/components/dashboard/lease-portfolio-table";
 import { MetricStatCard } from "@/components/dashboard/metric-stat-card";
 import { DashboardLeasePipeline } from "@/components/leases/dashboard-lease-pipeline";
@@ -14,7 +13,7 @@ type DashboardViewProps = Readonly<{
 }>;
 
 export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: DashboardViewProps) {
-  const { metrics, leases, deadlineAlerts } = data;
+  const { metrics, leases } = data;
 
   return (
     <div className="space-y-8">
@@ -44,8 +43,6 @@ export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: D
           accent="warning"
         />
       </section>
-
-      <LeaseDeadlineAlerts alerts={deadlineAlerts} />
 
       <LeasePortfolioTable leases={leases} />
 
