@@ -197,12 +197,6 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         ) : null}
       </div>
 
-      <LeaseManagementPanel
-        leaseId={lease.id}
-        initialPropertyName={lease.property_name}
-        supplementalCount={documents.filter((d) => d.document_type !== "primary_lease").length}
-      />
-
       {lease.extraction_status !== "complete" ? (
         <div
           className={`rounded-xl border px-4 py-3 text-sm ${
@@ -451,6 +445,12 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
           )}
         </LeaseDetailSection>
       </div>
+
+      <LeaseManagementPanel
+        leaseId={lease.id}
+        initialPropertyName={lease.property_name}
+        documents={documents}
+      />
     </div>
   );
 }

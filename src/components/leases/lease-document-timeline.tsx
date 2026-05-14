@@ -1,11 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { LeaseDetailSection } from "@/components/leases/lease-detail-section";
 import { LEASE_DOCUMENT_TYPE_LABEL } from "@/lib/lease/lease-document-types";
-import { createClient } from "@/lib/supabase/client";
 import type { LeaseDocumentProcessingStatus, Tables } from "@/lib/supabase/database.types";
 
 const statusBadge: Record<
@@ -26,70 +24,22 @@ type LeaseDocumentTimelineProps = Readonly<{
 }>;
 
 export function LeaseDocumentTimeline({ leaseId, documents }: LeaseDocumentTimelineProps) {
-  const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const ordered = useMemo(() => {
     return [...documents].sort((a, b) => new Date(a.upload_date).getTime() - new Date(b.upload_date).getTime());
   }, [documents]);
 
   const toggle = useCallback((id: string) => {
-    setOpenId((prev) => (prev === id ? null : prev));
+    setOpenId((prev) => (prev === id ? null : id));
   }, []);
-
-  const deleteSupplemental = useCallback(
-    async (documentId: string, typeLabel: string) => {
-      if (
-        !window.confirm(
-          `Delete this ${typeLabel} and its stored file? Text extraction will run again for the remaining documents.`,
-        )
-      ) {
-        return;
-      }
-      setDeleteError(null);
-      setDeletingId(documentId);
-      try {
-        const supabase = createClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          setDeleteError("You must be signed in.");
-          return;
-        }
-        const res = await fetch(
-          `/api/v1/leases/${encodeURIComponent(leaseId)}/documents/${encodeURIComponent(documentId)}`,
-          {
-            method: "DELETE",
-            credentials: "same-origin",
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          },
-        );
-        const payload = (await res.json()) as { error?: string };
-        if (!res.ok) {
-          setDeleteError(payload.error ?? "Could not delete document.");
-          return;
-        }
-        setOpenId(null);
-        router.refresh();
-      } finally {
-        setDeletingId(null);
-      }
-    },
-    [leaseId, router],
-  );
 
   return (
     <LeaseDetailSection
       title="Document timeline"
-      description="Chronological record of all documents on file for this lease. Expand a row to open or delete supplemental PDFs."
+      description="Chronological record of all documents on file for this lease. Expand a row to open a PDF."
     >
       <div className="relative pl-4">
-        {deleteError ? (
-          <p className="mb-3 rounded-lg border border-red-200 bg-red-50/90 px-3 py-2 text-xs text-red-900">{deleteError}</p>
-        ) : null}
         <div className="absolute bottom-2 left-[11px] top-2 w-px bg-slate-200" aria-hidden />
         <ul className="space-y-4">
           {ordered.map((doc) => {
@@ -131,7 +81,7 @@ export function LeaseDocumentTimeline({ leaseId, documents }: LeaseDocumentTimel
                   </button>
                   {open ? (
                     <div className="border-t border-slate-100 px-4 py-3 text-sm">
-                      <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex flex-wrap gap-3">
                         {pdfHref ? (
                           <a
                             href={pdfHref}
@@ -145,19 +95,6 @@ export function LeaseDocumentTimeline({ leaseId, documents }: LeaseDocumentTimel
                         ) : (
                           <span className="text-xs text-slate-500">PDF not attached yet.</span>
                         )}
-                        {doc.document_type !== "primary_lease" ? (
-                          <button
-                            type="button"
-                            disabled={deletingId === doc.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void deleteSupplemental(doc.id, LEASE_DOCUMENT_TYPE_LABEL[doc.document_type]);
-                            }}
-                            className="inline-flex items-center rounded-lg border border-red-200 bg-red-50/90 px-3 py-1.5 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {deletingId === doc.id ? "Deleting…" : "Delete document"}
-                          </button>
-                        ) : null}
                       </div>
                     </div>
                   ) : null}
