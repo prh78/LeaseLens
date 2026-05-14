@@ -60,39 +60,69 @@ function truncatePreview(value: unknown, max = 140): string {
   return `${s.slice(0, max)}…`;
 }
 
-function firstSnippet(snippets: Record<string, string>): string | undefined {
-  const first = Object.values(snippets)[0];
-  if (!first) {
-    return undefined;
-  }
-  const t = first.trim();
-  return t.length <= 200 ? t : `${t.slice(0, 200)}…`;
-}
+/** Substrings of structured field names that are too generic to match snippet keys (avoids `date` matching `break_dates`). */
+const SNIPPET_KEY_NOISE_TOKENS = new Set([
+  "date",
+  "dates",
+  "day",
+  "days",
+]);
 
-function snippetKeyRelatesToStructuredField(snippetKey: string, structuredField: string): boolean {
-  const sk = snippetKey.toLowerCase().replace(/\s+/g, "_");
-  const sf = structuredField.toLowerCase();
-  if (sk === sf) {
-    return true;
-  }
-  const tokens = sf.split("_").filter((p) => p.length >= 3);
-  return tokens.some((t) => sk.includes(t));
+function normalizeSnippetKeyOrField(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
 }
 
 /**
- * Best-effort excerpt from `source_snippets` for a structured field (for conflict UI).
+ * Whether a `source_snippets` entry key plausibly belongs to this structured field.
+ * Uses exact normalized key match, then token overlap excluding generic date/day tokens.
+ */
+function snippetKeyRelatesToStructuredField(normalizedSnippetKey: string, normalizedField: string): boolean {
+  if (normalizedSnippetKey === normalizedField) {
+    return true;
+  }
+  const tokens = normalizedField
+    .split("_")
+    .filter((p) => p.length >= 3 && !SNIPPET_KEY_NOISE_TOKENS.has(p));
+  if (tokens.length === 0) {
+    return false;
+  }
+  return tokens.every((t) => normalizedSnippetKey.includes(t));
+}
+
+/**
+ * Best-effort excerpt from `source_snippets` for a structured field (operative terms + conflict UI).
+ * Prefers an exact key match; never falls back to an unrelated snippet.
  */
 export function snippetEvidenceForField(field: string, snippets: Record<string, string>): string | undefined {
+  const normalizedField = normalizeSnippetKeyOrField(field);
+
+  const clip = (text: string): string => {
+    const t = text.trim();
+    if (!t) {
+      return "";
+    }
+    return t.length <= 800 ? t : `${t.slice(0, 800)}…`;
+  };
+
+  for (const [k, v] of Object.entries(snippets)) {
+    if (normalizeSnippetKeyOrField(k) === normalizedField) {
+      const out = clip(v);
+      if (out) {
+        return out;
+      }
+    }
+  }
+
   for (const [k, v] of Object.entries(snippets)) {
     const t = v?.trim();
     if (!t) {
       continue;
     }
-    if (snippetKeyRelatesToStructuredField(k, field)) {
-      return t.length <= 800 ? t : `${t.slice(0, 800)}…`;
+    if (snippetKeyRelatesToStructuredField(normalizeSnippetKeyOrField(k), normalizedField)) {
+      return clip(v);
     }
   }
-  return firstSnippet(snippets);
+  return undefined;
 }
 
 function appendFieldConflict(
@@ -225,7 +255,7 @@ export function mergeSupplementalWithAudit(
   for (const key of appliedStructuredKeys) {
     const fk = String(key);
     for (const [sk, text] of Object.entries(patch.source_snippets)) {
-      if (snippetKeyRelatesToStructuredField(sk, fk)) {
+      if (snippetKeyRelatesToStructuredField(normalizeSnippetKeyOrField(sk), normalizeSnippetKeyOrField(fk))) {
         result.source_snippets = { ...result.source_snippets, [sk]: text };
       }
     }
