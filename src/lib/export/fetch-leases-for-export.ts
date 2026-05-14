@@ -21,7 +21,8 @@ const EXPORT_LEASE_SELECT = `
   review_reason,
   review_affected_fields,
   extracted_data (
-    commencement_date,
+    term_commencement_date,
+    rent_commencement_date,
     expiry_date,
     break_dates,
     notice_period_days,
@@ -34,6 +35,8 @@ const EXPORT_LEASE_SELECT = `
     vacant_possession_required,
     conditional_break_clause,
     confidence_score,
+    date_field_confidence,
+    date_ambiguities,
     source_snippets,
     field_extraction_meta,
     field_provenance,

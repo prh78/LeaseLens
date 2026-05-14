@@ -7,6 +7,24 @@ export type FieldExtractionMetaEntry = Readonly<{
   clause_reference?: string | null;
 }>;
 
+/** Structured model output: confidence 0–1 per commercial date grouping (stored in `extracted_data.date_field_confidence`). */
+export const DATE_FIELD_CONFIDENCE_KEYS = [
+  "term_commencement_date",
+  "rent_commencement_date",
+  "rent_review_dates",
+] as const;
+
+export type DateFieldConfidenceKey = (typeof DATE_FIELD_CONFIDENCE_KEYS)[number];
+
+export type DateFieldConfidenceMap = Readonly<Partial<Record<DateFieldConfidenceKey, number | null>>>;
+
+export type DateAmbiguityItem = Readonly<{
+  code: string;
+  detail: string | null;
+}>;
+
+const DATE_CONF_FIELD_SET = new Set<string>(DATE_FIELD_CONFIDENCE_KEYS);
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -91,16 +109,76 @@ export function parseFieldExtractionMeta(raw: Json | null | undefined): Record<s
   return out;
 }
 
-/** Effective confidence for a field: per-field meta, else global model score. */
+function coerce01(v: unknown): number | null {
+  if (v === null || v === undefined) {
+    return null;
+  }
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return Math.min(1, Math.max(0, v));
+  }
+  return null;
+}
+
+/** Parses persisted `date_field_confidence` JSON from analyse output. */
+export function parseDateFieldConfidence(raw: Json | null | undefined): DateFieldConfidenceMap {
+  if (raw == null || !isRecord(raw)) {
+    return {};
+  }
+  const out: Partial<Record<DateFieldConfidenceKey, number | null>> = {};
+  for (const key of DATE_FIELD_CONFIDENCE_KEYS) {
+    const c = coerce01(raw[key]);
+    if (c !== null) {
+      out[key] = c;
+    } else if (raw[key] === null) {
+      out[key] = null;
+    }
+  }
+  return out;
+}
+
+/** Parses `date_ambiguities` JSON array from analyse output. */
+export function parseDateAmbiguities(raw: Json | null | undefined): DateAmbiguityItem[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out: DateAmbiguityItem[] = [];
+  for (const item of raw) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    const code = typeof item.code === "string" ? item.code.trim() : "";
+    if (!code) {
+      continue;
+    }
+    const detail =
+      item.detail === null || item.detail === undefined
+        ? null
+        : typeof item.detail === "string"
+          ? item.detail.trim() || null
+          : null;
+    out.push({ code, detail });
+  }
+  return out;
+}
+
+/** Effective confidence for a field: per-field meta, else date-field map (for date keys), else global model score. */
 export function effectiveFieldConfidence(
   field: string,
   meta: Record<string, FieldExtractionMetaEntry>,
   globalScore: number | null | undefined,
+  dateFieldConfidence?: DateFieldConfidenceMap | null,
 ): number | null {
   const row = meta[field];
   const c = row?.confidence;
   if (typeof c === "number" && Number.isFinite(c)) {
     return Math.min(1, Math.max(0, c));
+  }
+  if (dateFieldConfidence && DATE_CONF_FIELD_SET.has(field)) {
+    const key = field as DateFieldConfidenceKey;
+    const dc = dateFieldConfidence[key];
+    if (typeof dc === "number" && Number.isFinite(dc)) {
+      return Math.min(1, Math.max(0, dc));
+    }
   }
   if (globalScore != null && Number.isFinite(globalScore)) {
     return Math.min(1, Math.max(0, globalScore));

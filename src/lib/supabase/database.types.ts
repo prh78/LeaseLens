@@ -132,7 +132,8 @@ export type Database = {
       extracted_data: {
         Row: {
           lease_id: string;
-          commencement_date: string | null;
+          term_commencement_date: string | null;
+          rent_commencement_date: string | null;
           expiry_date: string | null;
           break_dates: Json;
           notice_period_days: number | null;
@@ -142,6 +143,8 @@ export type Database = {
           reinstatement_required: boolean | null;
           vacant_possession_required: boolean | null;
           confidence_score: number | null;
+          date_field_confidence: Json | null;
+          date_ambiguities: Json;
           source_snippets: Json;
           raw_text: string | null;
           conditional_break_clause: string | null;
@@ -154,7 +157,8 @@ export type Database = {
         };
         Insert: {
           lease_id: string;
-          commencement_date?: string | null;
+          term_commencement_date?: string | null;
+          rent_commencement_date?: string | null;
           expiry_date?: string | null;
           break_dates?: Json;
           notice_period_days?: number | null;
@@ -164,6 +168,8 @@ export type Database = {
           reinstatement_required?: boolean | null;
           vacant_possession_required?: boolean | null;
           confidence_score?: number | null;
+          date_field_confidence?: Json | null;
+          date_ambiguities?: Json;
           source_snippets?: Json;
           raw_text?: string | null;
           conditional_break_clause?: string | null;
@@ -176,7 +182,8 @@ export type Database = {
         };
         Update: {
           lease_id?: string;
-          commencement_date?: string | null;
+          term_commencement_date?: string | null;
+          rent_commencement_date?: string | null;
           expiry_date?: string | null;
           break_dates?: Json;
           notice_period_days?: number | null;
@@ -186,6 +193,8 @@ export type Database = {
           reinstatement_required?: boolean | null;
           vacant_possession_required?: boolean | null;
           confidence_score?: number | null;
+          date_field_confidence?: Json | null;
+          date_ambiguities?: Json;
           source_snippets?: Json;
           raw_text?: string | null;
           conditional_break_clause?: string | null;

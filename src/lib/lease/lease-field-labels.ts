@@ -1,6 +1,7 @@
 /** UI labels for structured / provenance keys */
 export const OPERATIVE_FIELD_LABELS: Record<string, string> = {
-  commencement_date: "Commencement date",
+  term_commencement_date: "Term commencement date",
+  rent_commencement_date: "Rent commencement date",
   expiry_date: "Expiry date",
   break_dates: "Break date(s)",
   notice_period_days: "Notice period",

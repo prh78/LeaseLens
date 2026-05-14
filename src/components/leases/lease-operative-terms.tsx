@@ -9,7 +9,9 @@ import {
   confidenceBand,
   effectiveFieldConfidence,
   parseFieldExtractionMeta,
+  parseDateFieldConfidence,
   type ConfidenceBand,
+  type DateFieldConfidenceMap,
   type FieldExtractionMetaEntry,
 } from "@/lib/lease/field-extraction-meta";
 import { operativeFieldLabel } from "@/lib/lease/lease-field-labels";
@@ -92,8 +94,9 @@ function OperativeEvidenceRow(props: Readonly<{
   snippetText: string | undefined;
   allMeta: Record<string, FieldExtractionMetaEntry>;
   globalConfidence: number | null | undefined;
+  dateFieldConfidence: DateFieldConfidenceMap;
 }>) {
-  const eff = effectiveFieldConfidence(props.field, props.allMeta, props.globalConfidence);
+  const eff = effectiveFieldConfidence(props.field, props.allMeta, props.globalConfidence, props.dateFieldConfidence);
   const band = confidenceBand(eff);
   const metaRow = props.allMeta[props.field];
   const clauseRef = metaRow?.clause_reference?.trim();
@@ -175,9 +178,11 @@ type LeaseOperativeTermsProps = Readonly<{
 export function LeaseOperativeTerms({ extracted, provenance }: LeaseOperativeTermsProps) {
   const snippets = jsonSnippetMap(extracted.source_snippets);
   const fieldMeta = parseFieldExtractionMeta(extracted.field_extraction_meta);
+  const dateFieldConfidence = parseDateFieldConfidence(extracted.date_field_confidence);
 
   const criticalFields = [
-    "commencement_date",
+    "term_commencement_date",
+    "rent_commencement_date",
     "expiry_date",
     "break_dates",
     "notice_period_days",
@@ -205,6 +210,7 @@ export function LeaseOperativeTerms({ extracted, provenance }: LeaseOperativeTer
         snippetText={snippetText}
         allMeta={fieldMeta}
         globalConfidence={extracted.confidence_score}
+        dateFieldConfidence={dateFieldConfidence}
       />
     );
   };

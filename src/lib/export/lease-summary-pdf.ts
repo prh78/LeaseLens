@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib"
 
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
 import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
-import { confidenceBand, effectiveFieldConfidence, parseFieldExtractionMeta } from "@/lib/lease/field-extraction-meta";
+import { confidenceBand, effectiveFieldConfidence, parseFieldExtractionMeta, parseDateFieldConfidence } from "@/lib/lease/field-extraction-meta";
 import {
   OPERATIVE_TERMS_CRITICAL_FIELDS,
   OPERATIVE_TERMS_OBLIGATION_FIELDS,
@@ -47,7 +47,8 @@ function verificationLabel(status: LeaseReviewStatus): string {
 
 function confidenceBandLabel(field: string, extracted: Tables<"extracted_data">): string {
   const meta = parseFieldExtractionMeta(extracted.field_extraction_meta);
-  const eff = effectiveFieldConfidence(field, meta, extracted.confidence_score);
+  const dateFc = parseDateFieldConfidence(extracted.date_field_confidence);
+  const eff = effectiveFieldConfidence(field, meta, extracted.confidence_score, dateFc);
   const band = confidenceBand(eff);
   const labels: Record<typeof band, string> = {
     high: "High confidence",

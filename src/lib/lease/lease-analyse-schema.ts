@@ -130,13 +130,81 @@ export function coerceFieldExtractionMetaInput(raw: unknown): Record<string, Fie
   return out;
 }
 
+function coerceConfidence01(v: unknown): number | null {
+  if (v === null || v === undefined) {
+    return null;
+  }
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return Math.min(1, Math.max(0, v));
+  }
+  return null;
+}
+
+const dateFieldConfidenceObjectSchema = z
+  .object({
+    term_commencement_date: z.union([z.number().min(0).max(1), z.null()]),
+    rent_commencement_date: z.union([z.number().min(0).max(1), z.null()]),
+    rent_review_dates: z.union([z.number().min(0).max(1), z.null()]),
+  })
+  .strict();
+
+export function coerceDateFieldConfidenceInput(raw: unknown): z.infer<typeof dateFieldConfidenceObjectSchema> {
+  const base = {
+    term_commencement_date: null as number | null,
+    rent_commencement_date: null as number | null,
+    rent_review_dates: null as number | null,
+  };
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    return base;
+  }
+  const o = raw as Record<string, unknown>;
+  return {
+    term_commencement_date: coerceConfidence01(o.term_commencement_date),
+    rent_commencement_date: coerceConfidence01(o.rent_commencement_date),
+    rent_review_dates: coerceConfidence01(o.rent_review_dates),
+  };
+}
+
+const dateAmbiguityEntrySchema = z
+  .object({
+    code: z.string(),
+    detail: z.union([z.string(), z.null()]),
+  })
+  .strip();
+
+export function coerceDateAmbiguitiesInput(raw: unknown): z.infer<typeof dateAmbiguityEntrySchema>[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out: z.infer<typeof dateAmbiguityEntrySchema>[] = [];
+  for (const item of raw) {
+    if (item == null || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+    const o = item as Record<string, unknown>;
+    const code = typeof o.code === "string" ? o.code.trim() : "";
+    if (!code) {
+      continue;
+    }
+    const detail =
+      o.detail === null || o.detail === undefined
+        ? null
+        : typeof o.detail === "string"
+          ? o.detail.trim() || null
+          : null;
+    out.push({ code, detail });
+  }
+  return out;
+}
+
 /**
  * Strict schema for OpenAI lease structured extraction.
  * All keys must be present in the model response (strict object).
  */
 export const leaseAnalyseOutputSchema = z
   .object({
-    commencement_date: dateOrNull,
+    term_commencement_date: dateOrNull,
+    rent_commencement_date: dateOrNull,
     expiry_date: dateOrNull,
     break_dates: dateArray,
     notice_period_days: z.union([z.number().int().min(0).max(3650), z.null()]),
@@ -149,6 +217,11 @@ export const leaseAnalyseOutputSchema = z
     ambiguous_language: z.boolean(),
     manual_review_recommended: z.boolean(),
     confidence_score: z.union([z.number().min(0).max(1), z.null()]),
+    date_field_confidence: z.preprocess(
+      coerceDateFieldConfidenceInput,
+      dateFieldConfidenceObjectSchema,
+    ),
+    date_ambiguities: z.preprocess(coerceDateAmbiguitiesInput, z.array(dateAmbiguityEntrySchema)),
     source_snippets: z.preprocess(coerceSourceSnippetsInput, z.record(z.string(), z.string())),
     field_extraction_meta: z.preprocess(
       coerceFieldExtractionMetaInput,
@@ -158,6 +231,26 @@ export const leaseAnalyseOutputSchema = z
   .strict();
 
 export type LeaseAnalyseOutput = z.infer<typeof leaseAnalyseOutputSchema>;
+
+const LOW_DATE_FIELD_CONFIDENCE = 0.55;
+
+/**
+ * Enforces conservative review flags from ambiguous wording, date ambiguity records,
+ * and low per-date confidence scores.
+ */
+export function finalizeLeaseAnalyseOutput(data: LeaseAnalyseOutput): LeaseAnalyseOutput {
+  const dfc = data.date_field_confidence;
+  const lowPerDate =
+    (dfc.term_commencement_date != null && dfc.term_commencement_date < LOW_DATE_FIELD_CONFIDENCE) ||
+    (dfc.rent_commencement_date != null && dfc.rent_commencement_date < LOW_DATE_FIELD_CONFIDENCE) ||
+    (dfc.rent_review_dates != null && dfc.rent_review_dates < LOW_DATE_FIELD_CONFIDENCE);
+  const dateAmb = data.date_ambiguities.length > 0;
+  return {
+    ...data,
+    manual_review_recommended:
+      data.manual_review_recommended || data.ambiguous_language || dateAmb || lowPerDate,
+  };
+}
 
 export function parseLeaseAnalyseJson(raw: unknown): LeaseAnalyseOutput {
   return leaseAnalyseOutputSchema.parse(raw);

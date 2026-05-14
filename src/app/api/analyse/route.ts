@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { syncLeaseAlerts } from "@/lib/alerts/sync-lease-alerts";
 import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
-import type { LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
+import { finalizeLeaseAnalyseOutput, type LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
 import {
   buildInitialProvenance,
   mergeSupplementalWithAudit,
@@ -15,7 +15,7 @@ import {
   type FieldProvenanceEntry,
 } from "@/lib/lease/lease-detail-audit";
 import { computeLeaseReviewSnapshot } from "@/lib/lease/compute-lease-review-snapshot";
-import { parseFieldExtractionMeta } from "@/lib/lease/field-extraction-meta";
+import { parseFieldExtractionMeta, parseDateAmbiguities, parseDateFieldConfidence } from "@/lib/lease/field-extraction-meta";
 import { mergeStructuredLeaseFields, parseSupersedesFields } from "@/lib/lease/merge-structured-lease-fields";
 import { analyseLeaseTextWithOpenAI } from "@/lib/lease/openai-analyse";
 import { sortLeaseDocumentsForExtraction } from "@/lib/lease/sort-lease-documents-for-extraction";
@@ -41,13 +41,6 @@ function nullIfEmpty(value: string | null): string | null {
   }
   const t = value.trim();
   return t === "" ? null : t;
-}
-
-function applyConservativeOverrides(data: LeaseAnalyseOutput): LeaseAnalyseOutput {
-  return {
-    ...data,
-    manual_review_recommended: data.manual_review_recommended || data.ambiguous_language,
-  };
 }
 
 function truncateError(message: string, max = 2000): string {
@@ -188,7 +181,7 @@ export async function POST(request: Request) {
   let attemptsUsed: number;
   try {
     const result = await analyseLeaseTextWithOpenAI(leaseText);
-    structured = applyConservativeOverrides(result.data);
+    structured = finalizeLeaseAnalyseOutput(result.data);
     attemptsUsed = result.attemptsUsed;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "OpenAI analyse failed.";
@@ -258,7 +251,7 @@ export async function POST(request: Request) {
         const slice =
           docTrimmed.length > MAX_LEASE_TEXT_CHARS ? docTrimmed.slice(0, MAX_LEASE_TEXT_CHARS) : docTrimmed;
         const supResult = await analyseLeaseTextWithOpenAI(slice);
-        const patch = applyConservativeOverrides(supResult.data);
+        const patch = finalizeLeaseAnalyseOutput(supResult.data);
         if (primaryDoc) {
           mergedStructured = mergeSupplementalWithAudit(mergedStructured, patch, keys, {
             primaryDocumentId: primaryDoc.id,
@@ -307,14 +300,15 @@ export async function POST(request: Request) {
     };
   }
 
-  mergedStructured = applyConservativeOverrides(mergedStructured);
+  mergedStructured = finalizeLeaseAnalyseOutput(mergedStructured);
 
   const preservedRaw = extractedRow?.raw_text ?? (rawTextOverride ? rawTextOverride : null);
 
   const coreUpsertRow: Database["public"]["Tables"]["extracted_data"]["Insert"] = {
     lease_id: leaseId,
     raw_text: preservedRaw,
-    commencement_date: mergedStructured.commencement_date,
+    term_commencement_date: mergedStructured.term_commencement_date,
+    rent_commencement_date: mergedStructured.rent_commencement_date,
     expiry_date: mergedStructured.expiry_date,
     break_dates: mergedStructured.break_dates as unknown as Json,
     notice_period_days: mergedStructured.notice_period_days,
@@ -327,6 +321,8 @@ export async function POST(request: Request) {
     ambiguous_language: mergedStructured.ambiguous_language,
     manual_review_recommended: mergedStructured.manual_review_recommended,
     confidence_score: mergedStructured.confidence_score,
+    date_field_confidence: mergedStructured.date_field_confidence as unknown as Json,
+    date_ambiguities: mergedStructured.date_ambiguities as unknown as Json,
     source_snippets: mergedStructured.source_snippets as unknown as Json,
     field_extraction_meta: mergedStructured.field_extraction_meta as unknown as Json,
   };
@@ -391,12 +387,16 @@ export async function POST(request: Request) {
   }
 
   const fieldMeta = parseFieldExtractionMeta(mergedStructured.field_extraction_meta as Json);
+  const dateFieldConfidence = parseDateFieldConfidence(mergedStructured.date_field_confidence as unknown as Json);
+  const dateAmbiguities = parseDateAmbiguities(mergedStructured.date_ambiguities as unknown as Json);
   const reviewSnapshot = computeLeaseReviewSnapshot({
     manualReviewRecommended: mergedStructured.manual_review_recommended,
     ambiguousLanguage: mergedStructured.ambiguous_language,
     confidenceScore: mergedStructured.confidence_score,
     documentConflicts: conflictAudit,
     fieldExtractionMeta: fieldMeta,
+    dateAmbiguities,
+    dateFieldConfidence,
   });
 
   const { error: leaseDoneErr } = await admin

@@ -24,11 +24,11 @@ export const LEASE_AFFECTED_AREA_LABEL: Record<LeaseAffectedArea, string> = {
 export function supersedesKeysForAffectedArea(area: LeaseAffectedArea): (keyof LeaseAnalyseOutput)[] {
   switch (area) {
     case "lease_term":
-      return ["commencement_date", "expiry_date"];
+      return ["term_commencement_date", "expiry_date", "rent_commencement_date", "date_field_confidence", "date_ambiguities"];
     case "break_clauses":
       return ["break_dates", "notice_period_days"];
     case "rent_review":
-      return ["rent_review_dates"];
+      return ["rent_review_dates", "rent_commencement_date", "date_field_confidence", "date_ambiguities"];
     case "repairing_obligations":
       return ["repairing_obligation", "reinstatement_required", "vacant_possession_required"];
     case "service_charge":

@@ -12,6 +12,7 @@ import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease
 import { collectLeaseRiskFlags } from "@/lib/lease/lease-summary-risk-flags";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
 import { formatIsoDate, humanizeKey, jsonSnippetMap } from "@/lib/lease/lease-detail";
+import { parseDateAmbiguities } from "@/lib/lease/field-extraction-meta";
 import {
   parseChangeHistory,
   parseDocumentConflicts,
@@ -155,6 +156,8 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
       ? `${Math.round(Math.min(1, Math.max(0, extracted.confidence_score)) * 100)}%`
       : null;
 
+  const dateAmbiguities = extracted ? parseDateAmbiguities(extracted.date_ambiguities) : [];
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 border-b border-slate-200/80 pb-6 sm:flex-row sm:items-start sm:justify-between">
@@ -296,9 +299,15 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
                 <dd className="mt-0.5 font-medium text-slate-900">{propertyTypeLabel(lease.property_type)}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Term start</dt>
+                <dt className="text-slate-500">Term commencement</dt>
                 <dd className="mt-0.5 font-medium text-slate-900">
-                  {formatIsoDate(extracted?.commencement_date ?? null) ?? "—"}
+                  {formatIsoDate(extracted?.term_commencement_date ?? null) ?? "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Rent commencement</dt>
+                <dd className="mt-0.5 font-medium text-slate-900">
+                  {formatIsoDate(extracted?.rent_commencement_date ?? null) ?? "—"}
                 </dd>
               </div>
               <div>
@@ -308,6 +317,22 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
                 </dd>
               </div>
             </dl>
+            {dateAmbiguities.length > 0 ? (
+              <div
+                className="mt-4 rounded-lg border border-amber-200/90 bg-amber-50/80 px-3 py-2.5 text-xs leading-relaxed text-amber-950"
+                role="status"
+              >
+                <p className="font-semibold text-amber-950">Date wording needs attention</p>
+                <ul className="mt-1.5 list-disc space-y-1 pl-4">
+                  {dateAmbiguities.map((a) => (
+                    <li key={`${a.code}-${a.detail ?? ""}`}>
+                      <span className="font-mono text-[11px]">{a.code}</span>
+                      {a.detail ? <span className="text-amber-900"> — {a.detail}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
           <div className="shrink-0 rounded-xl border border-slate-200/80 bg-white/80 px-5 py-4 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overall risk</p>

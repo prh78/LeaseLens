@@ -2,7 +2,8 @@ import type { LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
 import type { Json } from "@/lib/supabase/database.types";
 
 export const MERGEABLE_STRUCTURED_KEYS: readonly (keyof LeaseAnalyseOutput)[] = [
-  "commencement_date",
+  "term_commencement_date",
+  "rent_commencement_date",
   "expiry_date",
   "break_dates",
   "notice_period_days",
@@ -15,6 +16,8 @@ export const MERGEABLE_STRUCTURED_KEYS: readonly (keyof LeaseAnalyseOutput)[] = 
   "ambiguous_language",
   "manual_review_recommended",
   "confidence_score",
+  "date_field_confidence",
+  "date_ambiguities",
   "source_snippets",
   "field_extraction_meta",
 ] as const;

@@ -48,15 +48,32 @@ export function buildCriticalDatesScheduleCsv(leaseRows: LeaseWithExtractedForEx
     const risk = leaseRow.overall_risk;
     const extraction = leaseRow.extraction_status;
 
-    if (ex && validCalendarIso(ex.commencement_date)) {
-      const iso = ex.commencement_date;
+    if (ex && validCalendarIso(ex.term_commencement_date)) {
+      const iso = ex.term_commencement_date;
       const days = calendarDaysRemaining(iso);
       flat.push({
         sortKey: iso,
         leaseId: leaseRow.id,
         propertyName: leaseRow.property_name,
         termStatus: term,
-        eventType: "Commencement",
+        eventType: "Term commencement",
+        eventDate: iso,
+        daysRemaining: days === null ? "" : String(days),
+        urgency: days === null ? "" : urgencyFromDays(days),
+        overallRisk: risk,
+        extractionStatus: extraction,
+      });
+    }
+
+    if (ex && validCalendarIso(ex.rent_commencement_date)) {
+      const iso = ex.rent_commencement_date;
+      const days = calendarDaysRemaining(iso);
+      flat.push({
+        sortKey: iso,
+        leaseId: leaseRow.id,
+        propertyName: leaseRow.property_name,
+        termStatus: term,
+        eventType: "Rent commencement",
         eventDate: iso,
         daysRemaining: days === null ? "" : String(days),
         urgency: days === null ? "" : urgencyFromDays(days),

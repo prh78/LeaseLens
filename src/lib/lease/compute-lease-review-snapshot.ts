@@ -1,5 +1,5 @@
 import type { DocumentConflictEntry } from "@/lib/lease/lease-detail-audit";
-import type { FieldExtractionMetaEntry } from "@/lib/lease/field-extraction-meta";
+import type { DateAmbiguityItem, DateFieldConfidenceMap, FieldExtractionMetaEntry } from "@/lib/lease/field-extraction-meta";
 import type { LeaseReviewPriority, LeaseReviewStatus } from "@/lib/supabase/database.types";
 
 export type LeaseReviewSnapshot = Readonly<{
@@ -26,6 +26,19 @@ function uniqueStrings(values: readonly string[]): string[] {
   return out;
 }
 
+function lowConfidenceDateKeys(map: DateFieldConfidenceMap | null | undefined): string[] {
+  if (!map) {
+    return [];
+  }
+  const out: string[] = [];
+  for (const [k, v] of Object.entries(map)) {
+    if (typeof v === "number" && Number.isFinite(v) && v < LOW_FIELD_CONF) {
+      out.push(k);
+    }
+  }
+  return out;
+}
+
 /**
  * Derives queue fields from structured extraction output (runs after each successful analyse).
  */
@@ -35,15 +48,21 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
   confidenceScore: number | null;
   documentConflicts: readonly DocumentConflictEntry[];
   fieldExtractionMeta: Record<string, FieldExtractionMetaEntry>;
+  dateAmbiguities?: readonly DateAmbiguityItem[];
+  dateFieldConfidence?: DateFieldConfidenceMap | null;
 }>): LeaseReviewSnapshot {
   const conflictFields = input.documentConflicts.map((c) => c.field);
   const lowConfidenceFields = Object.entries(input.fieldExtractionMeta)
     .filter(([, meta]) => typeof meta.confidence === "number" && meta.confidence < LOW_FIELD_CONF)
     .map(([k]) => k);
+  const dateAmb = input.dateAmbiguities ?? [];
+  const lowDateKeys = lowConfidenceDateKeys(input.dateFieldConfidence ?? null);
 
   const affected = uniqueStrings([
     ...conflictFields,
     ...lowConfidenceFields,
+    ...lowDateKeys,
+    ...(dateAmb.length > 0 ? ["date_ambiguities"] : []),
     ...(input.ambiguousLanguage ? ["ambiguous_language"] : []),
     ...(input.manualReviewRecommended ? ["manual_review_recommended"] : []),
   ]);
@@ -58,6 +77,8 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
     input.ambiguousLanguage ||
     input.documentConflicts.length > 0 ||
     lowConfidenceFields.length > 0 ||
+    lowDateKeys.length > 0 ||
+    dateAmb.length > 0 ||
     globalLow;
 
   if (!needsReview) {
@@ -81,8 +102,16 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
   if (input.manualReviewRecommended) {
     reasons.push("Model recommended manual verification.");
   }
+  if (dateAmb.length > 0) {
+    reasons.push(
+      `Date classification uncertainty (${dateAmb.length} issue${dateAmb.length === 1 ? "" : "s"} recorded).`,
+    );
+  }
   if (lowConfidenceFields.length > 0) {
     reasons.push(`Low per-field confidence on: ${lowConfidenceFields.slice(0, 6).join(", ")}${lowConfidenceFields.length > 6 ? "…" : ""}.`);
+  }
+  if (lowDateKeys.length > 0) {
+    reasons.push(`Low confidence on date field(s): ${lowDateKeys.join(", ")}.`);
   }
   if (globalLow) {
     reasons.push(`Overall model confidence is low (${(input.confidenceScore ?? 0).toFixed(2)}).`);
@@ -91,7 +120,13 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
   let priority: LeaseReviewPriority = "low";
   if (input.documentConflicts.length > 0 || (input.manualReviewRecommended && globalLow)) {
     priority = "high";
-  } else if (input.manualReviewRecommended || input.ambiguousLanguage || lowConfidenceFields.length > 0) {
+  } else if (
+    input.manualReviewRecommended ||
+    input.ambiguousLanguage ||
+    lowConfidenceFields.length > 0 ||
+    lowDateKeys.length > 0 ||
+    dateAmb.length > 0
+  ) {
     priority = "medium";
   }
 

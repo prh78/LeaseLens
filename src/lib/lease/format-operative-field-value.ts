@@ -3,7 +3,8 @@ import type { Tables } from "@/lib/supabase/database.types";
 
 /** Field keys rendered under "Current operative terms" (same groupings as the lease UI). */
 export const OPERATIVE_TERMS_CRITICAL_FIELDS = [
-  "commencement_date",
+  "term_commencement_date",
+  "rent_commencement_date",
   "expiry_date",
   "break_dates",
   "notice_period_days",
@@ -21,9 +22,15 @@ export const OPERATIVE_TERMS_OTHER_FIELDS = ["conditional_break_clause"] as cons
 
 export function formatOperativeFieldLines(field: string, extracted: Tables<"extracted_data">): string[] {
   switch (field) {
-    case "commencement_date":
+    case "term_commencement_date":
+    case "rent_commencement_date":
     case "expiry_date": {
-      const v = field === "commencement_date" ? extracted.commencement_date : extracted.expiry_date;
+      const v =
+        field === "term_commencement_date"
+          ? extracted.term_commencement_date
+          : field === "rent_commencement_date"
+            ? extracted.rent_commencement_date
+            : extracted.expiry_date;
       const f = formatIsoDate(v);
       return [f ? f : "—"];
     }
