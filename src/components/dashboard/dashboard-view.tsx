@@ -31,7 +31,7 @@ export function DashboardView({ data, pipelineLeaseIds }: DashboardViewProps) {
         <MetricStatCard
           label="Critical actions due"
           value={metrics.criticalActionsDue}
-          hint="Leases with a milestone within 90 days"
+          hint="Leases with high/critical urgency or a dated action within 90 days (or manual review)"
           accent="danger"
         />
         <MetricStatCard

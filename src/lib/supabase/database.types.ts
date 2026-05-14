@@ -2,6 +2,8 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type ExtractionStatus = "uploading" | "extracting" | "analysing" | "complete" | "failed";
 export type OverallRisk = "low" | "medium" | "high" | "critical";
+export type LeaseNextActionType = "break_notice_deadline" | "rent_review" | "lease_expiry" | "manual_review";
+export type LeaseNextActionUrgency = "low" | "medium" | "high" | "critical";
 export type AlertSentStatus = "pending" | "sent" | "skipped" | "failed";
 
 export type Database = {
@@ -18,6 +20,10 @@ export type Database = {
           extraction_status: ExtractionStatus;
           overall_risk: OverallRisk;
           extraction_error: string | null;
+          next_action_type: LeaseNextActionType | null;
+          next_action_date: string | null;
+          next_action_days_remaining: number | null;
+          next_action_urgency: LeaseNextActionUrgency | null;
         };
         Insert: {
           id?: string;
@@ -29,6 +35,10 @@ export type Database = {
           extraction_status?: ExtractionStatus;
           overall_risk?: OverallRisk;
           extraction_error?: string | null;
+          next_action_type?: LeaseNextActionType | null;
+          next_action_date?: string | null;
+          next_action_days_remaining?: number | null;
+          next_action_urgency?: LeaseNextActionUrgency | null;
         };
         Update: {
           id?: string;
@@ -40,6 +50,10 @@ export type Database = {
           extraction_status?: ExtractionStatus;
           overall_risk?: OverallRisk;
           extraction_error?: string | null;
+          next_action_type?: LeaseNextActionType | null;
+          next_action_date?: string | null;
+          next_action_days_remaining?: number | null;
+          next_action_urgency?: LeaseNextActionUrgency | null;
         };
         Relationships: [];
       };

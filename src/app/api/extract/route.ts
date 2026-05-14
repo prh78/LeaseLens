@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { extractTextFromPdfBuffer } from "@/lib/pdf/extract-text";
+import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import type { Database } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
 
@@ -181,6 +182,12 @@ export async function POST(request: Request) {
         .eq("id", leaseId)
         .eq("user_id", user.id);
 
+      try {
+        await syncLeaseNextAction(admin, leaseId);
+      } catch (syncCause) {
+        console.error("syncLeaseNextAction failed:", syncCause);
+      }
+
       return NextResponse.json(
         { error: msg, leaseId, extractionStatus: "failed" as const },
         { status: 502 },
@@ -226,6 +233,12 @@ export async function POST(request: Request) {
       throw new Error(doneErr.message);
     }
 
+    try {
+      await syncLeaseNextAction(admin, leaseId);
+    } catch (syncCause) {
+      console.error("syncLeaseNextAction failed:", syncCause);
+    }
+
     const { text, truncated, storedLength } = truncateForResponse(fullText);
 
     return NextResponse.json({
@@ -247,6 +260,12 @@ export async function POST(request: Request) {
       .update({ extraction_status: "failed", extraction_error: safe })
       .eq("id", leaseId)
       .eq("user_id", user.id);
+
+    try {
+      await syncLeaseNextAction(admin, leaseId);
+    } catch (syncCause) {
+      console.error("syncLeaseNextAction failed:", syncCause);
+    }
 
     return NextResponse.json(
       { error: safe, leaseId, extractionStatus: "failed" as const },

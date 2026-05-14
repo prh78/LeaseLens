@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { syncLeaseAlerts } from "@/lib/alerts/sync-lease-alerts";
+import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import type { LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
 import { analyseLeaseTextWithOpenAI } from "@/lib/lease/openai-analyse";
@@ -169,6 +170,12 @@ export async function POST(request: Request) {
       .eq("id", leaseId)
       .eq("user_id", user.id);
 
+    try {
+      await syncLeaseNextAction(admin, leaseId);
+    } catch (syncCause) {
+      console.error("syncLeaseNextAction failed:", syncCause);
+    }
+
     return NextResponse.json({ error: message, leaseId }, { status: 502 });
   }
 
@@ -204,6 +211,12 @@ export async function POST(request: Request) {
       .eq("id", leaseId)
       .eq("user_id", user.id);
 
+    try {
+      await syncLeaseNextAction(admin, leaseId);
+    } catch (syncCause) {
+      console.error("syncLeaseNextAction failed:", syncCause);
+    }
+
     return NextResponse.json({ error: upsertError.message, leaseId }, { status: 500 });
   }
 
@@ -221,6 +234,12 @@ export async function POST(request: Request) {
     await syncLeaseAlerts(admin, leaseId);
   } catch (syncCause) {
     console.error("syncLeaseAlerts failed:", syncCause);
+  }
+
+  try {
+    await syncLeaseNextAction(admin, leaseId);
+  } catch (syncCause) {
+    console.error("syncLeaseNextAction failed:", syncCause);
   }
 
   return NextResponse.json({

@@ -5,6 +5,7 @@ import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { isPropertyType } from "@/lib/lease/property-types";
 import type { Database } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
+import { leaseExtractionStatusConstraintHint } from "@/lib/supabase/lease-schema-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +95,8 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const hint = leaseExtractionStatusConstraintHint(error);
+    return NextResponse.json({ error: hint ?? error.message }, { status: hint ? 503 : 500 });
   }
 
   return NextResponse.json({ leaseId: data.id, extractionStatus: "uploading" as const });

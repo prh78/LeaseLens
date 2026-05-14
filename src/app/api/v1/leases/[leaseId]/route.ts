@@ -5,6 +5,7 @@ import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { isValidLeasePdfStoragePath } from "@/lib/lease/lease-storage-path";
 import type { Database } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
+import { leaseExtractionStatusConstraintHint } from "@/lib/supabase/lease-schema-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ lease
     .eq("extraction_status", "uploading");
 
   if (updErr) {
-    return NextResponse.json({ error: updErr.message }, { status: 500 });
+    const hint = leaseExtractionStatusConstraintHint(updErr);
+    return NextResponse.json({ error: hint ?? updErr.message }, { status: hint ? 503 : 500 });
   }
 
   return NextResponse.json({ leaseId, extractionStatus: "extracting" as const });

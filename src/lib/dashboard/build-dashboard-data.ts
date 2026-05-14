@@ -1,7 +1,11 @@
-import { computeNextCriticalAction, hasCriticalActionWithin90Days } from "@/lib/dashboard/next-critical-action";
+import {
+  computeLeaseNextAction,
+  isLeaseCriticalActionDue,
+  LEASE_NEXT_ACTION_LABEL,
+  type LeaseNextActionResult,
+} from "@/lib/lease/compute-lease-next-action";
 import type {
   DashboardAlertRow,
-  DashboardAlertSourceRow,
   DashboardData,
   DashboardLeaseRow,
   DashboardMetrics,
@@ -20,73 +24,129 @@ function normalizedExtracted(row: LeaseWithExtracted): Tables<"extracted_data"> 
   return Array.isArray(ed) ? ed[0] ?? null : ed;
 }
 
-function severityForAlert(
-  horizon: number | null,
-  triggerIso: string,
-): "info" | "warning" | "critical" {
-  const t = new Date(triggerIso).getTime();
-  if (Number.isNaN(t)) {
-    return "info";
+function effectiveNextAction(row: LeaseWithExtracted): LeaseNextActionResult | null {
+  if (
+    row.extraction_status === "complete" &&
+    row.next_action_type != null &&
+    row.next_action_urgency != null
+  ) {
+    return {
+      action_type: row.next_action_type,
+      action_date: row.next_action_date,
+      days_remaining: row.next_action_days_remaining,
+      urgency_level: row.next_action_urgency,
+    };
   }
-  const days = Math.ceil((t - Date.now()) / 86_400_000);
-  if (days <= 7) {
+
+  const extracted = normalizedExtracted(row);
+  if (!extracted) {
+    return null;
+  }
+
+  return computeLeaseNextAction({
+    expiry_date: extracted.expiry_date,
+    break_dates: extracted.break_dates,
+    notice_period_days: extracted.notice_period_days,
+    rent_review_dates: extracted.rent_review_dates,
+    ambiguous_language: extracted.ambiguous_language,
+    manual_review_recommended: extracted.manual_review_recommended,
+  });
+}
+
+function urgencyRank(level: NonNullable<LeaseNextActionResult["urgency_level"]>): number {
+  switch (level) {
+    case "critical":
+      return 0;
+    case "high":
+      return 1;
+    case "medium":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+function severityFromUrgency(level: LeaseNextActionResult["urgency_level"]): DashboardAlertRow["severity"] {
+  if (level === "critical") {
     return "critical";
   }
-  if (days <= 30 || horizon === 30 || horizon === 7) {
+  if (level === "high") {
     return "warning";
   }
   return "info";
 }
 
-function formatTriggerDueLabel(triggerIso: string): string {
-  const t = new Date(triggerIso);
-  if (Number.isNaN(t.getTime())) {
-    return triggerIso;
+function formatActionDueLabel(next: LeaseNextActionResult): string {
+  if (next.action_type === "manual_review") {
+    return "Review recommended";
   }
-  const now = new Date();
-  const diffMs = t.getTime() - now.getTime();
-  const days = Math.ceil(diffMs / 86_400_000);
-  if (days <= 0) {
+  if (next.days_remaining === null || !next.action_date) {
+    return "—";
+  }
+  if (next.days_remaining <= 0) {
     return "Due now";
   }
-  if (days === 1) {
+  if (next.days_remaining === 1) {
     return "In 1 day";
   }
-  if (days < 14) {
-    return `In ${days} days`;
+  if (next.days_remaining < 14) {
+    return `In ${next.days_remaining} days`;
   }
-  return t.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const d = new Date(`${next.action_date}T12:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) {
+    return next.action_date;
+  }
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function buildDashboardData(
-  leaseRows: LeaseWithExtracted[],
-  alertRows: DashboardAlertSourceRow[],
-): DashboardData {
+export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardData {
   const metrics: DashboardMetrics = {
     totalLeases: leaseRows.length,
-    criticalActionsDue: leaseRows.filter((row) => hasCriticalActionWithin90Days(normalizedExtracted(row))).length,
+    criticalActionsDue: leaseRows.filter((row) => isLeaseCriticalActionDue(effectiveNextAction(row))).length,
     highRiskLeases: leaseRows.filter((row) => row.overall_risk === "high").length,
   };
 
   const leases: DashboardLeaseRow[] = leaseRows.map((row) => {
-    const extracted = normalizedExtracted(row);
-    const next = computeNextCriticalAction(extracted);
+    const next = effectiveNextAction(row);
     return {
       id: row.id,
       propertyName: row.property_name,
-      nextCriticalAction: next?.label ?? "—",
-      daysRemaining: next?.daysRemaining ?? null,
+      nextCriticalAction: next ? LEASE_NEXT_ACTION_LABEL[next.action_type] : "—",
+      actionType: next?.action_type ?? null,
+      actionDate: next?.action_date ?? null,
+      daysRemaining: next?.days_remaining ?? null,
+      urgencyLevel: next?.urgency_level ?? null,
       riskLevel: row.overall_risk,
       extractionStatus: row.extraction_status,
     };
   });
 
-  const alerts: DashboardAlertRow[] = alertRows.map((a) => ({
-    id: a.id,
-    title: `${a.property_name} — ${a.alert_type}`,
-    dueLabel: formatTriggerDueLabel(a.trigger_date),
-    severity: severityForAlert(a.horizon_days, a.trigger_date),
-  }));
+  const actionAlerts: DashboardAlertRow[] = leaseRows
+    .map((row) => {
+      const next = effectiveNextAction(row);
+      if (!next) {
+        return null;
+      }
+      return { row, next };
+    })
+    .filter((x): x is { row: LeaseWithExtracted; next: LeaseNextActionResult } => x !== null)
+    .sort((a, b) => {
+      const ur = urgencyRank(a.next.urgency_level) - urgencyRank(b.next.urgency_level);
+      if (ur !== 0) {
+        return ur;
+      }
+      const da = a.next.days_remaining ?? 9999;
+      const db = b.next.days_remaining ?? 9999;
+      return da - db;
+    })
+    .slice(0, 20)
+    .map(({ row, next }) => ({
+      id: `lease-next-${row.id}`,
+      leaseId: row.id,
+      title: `${row.property_name} — ${LEASE_NEXT_ACTION_LABEL[next.action_type]}`,
+      dueLabel: formatActionDueLabel(next),
+      severity: severityFromUrgency(next.urgency_level),
+    }));
 
-  return { metrics, leases, alerts };
+  return { metrics, leases, alerts: actionAlerts };
 }
