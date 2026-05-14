@@ -89,6 +89,7 @@ export type Database = {
           upload_date: string;
           processing_status: LeaseDocumentProcessingStatus;
           supersedes_fields: Json;
+          display_name: string | null;
         };
         Insert: {
           id?: string;
@@ -98,6 +99,7 @@ export type Database = {
           upload_date?: string;
           processing_status?: LeaseDocumentProcessingStatus;
           supersedes_fields?: Json;
+          display_name?: string | null;
         };
         Update: {
           id?: string;
@@ -107,6 +109,7 @@ export type Database = {
           upload_date?: string;
           processing_status?: LeaseDocumentProcessingStatus;
           supersedes_fields?: Json;
+          display_name?: string | null;
         };
         Relationships: [];
       };
@@ -128,6 +131,9 @@ export type Database = {
           conditional_break_clause: string | null;
           ambiguous_language: boolean | null;
           manual_review_recommended: boolean | null;
+          field_provenance?: Json;
+          change_history?: Json;
+          document_conflicts?: Json;
         };
         Insert: {
           lease_id: string;
@@ -146,6 +152,9 @@ export type Database = {
           conditional_break_clause?: string | null;
           ambiguous_language?: boolean | null;
           manual_review_recommended?: boolean | null;
+          field_provenance?: Json;
+          change_history?: Json;
+          document_conflicts?: Json;
         };
         Update: {
           lease_id?: string;
@@ -164,6 +173,9 @@ export type Database = {
           conditional_break_clause?: string | null;
           ambiguous_language?: boolean | null;
           manual_review_recommended?: boolean | null;
+          field_provenance?: Json;
+          change_history?: Json;
+          document_conflicts?: Json;
         };
         Relationships: [];
       };

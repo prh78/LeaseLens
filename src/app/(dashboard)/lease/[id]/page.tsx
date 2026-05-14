@@ -43,13 +43,28 @@ export default async function LeaseDetailPage({ params }: LeaseDetailPageProps) 
     console.error("extracted_data load:", extractedError.message);
   }
 
+  const { data: leaseDocuments, error: leaseDocumentsError } = await supabase
+    .from("lease_documents")
+    .select("*")
+    .eq("lease_id", id)
+    .order("upload_date", { ascending: true });
+
+  if (leaseDocumentsError) {
+    console.error("lease_documents load:", leaseDocumentsError.message);
+  }
+
   const kickStructured = needsStructuredAnalyse(lease.extraction_status, extracted);
   const nextAction = effectiveLeaseNextAction(lease, extracted);
 
   return (
     <>
       <LeaseStructuredAnalyseKickoff leaseId={lease.id} enabled={kickStructured} />
-      <LeaseDetailView lease={lease} extracted={extracted} nextAction={nextAction} />
+      <LeaseDetailView
+        lease={lease}
+        extracted={extracted}
+        nextAction={nextAction}
+        documents={leaseDocuments ?? []}
+      />
     </>
   );
 }

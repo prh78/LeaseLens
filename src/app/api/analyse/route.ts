@@ -7,6 +7,13 @@ import { syncLeaseAlerts } from "@/lib/alerts/sync-lease-alerts";
 import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import type { LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
+import {
+  buildInitialProvenance,
+  mergeSupplementalWithAudit,
+  type ChangeHistoryEntry,
+  type DocumentConflictEntry,
+  type FieldProvenanceEntry,
+} from "@/lib/lease/lease-detail-audit";
 import { mergeStructuredLeaseFields, parseSupersedesFields } from "@/lib/lease/merge-structured-lease-fields";
 import { analyseLeaseTextWithOpenAI } from "@/lib/lease/openai-analyse";
 import { sortLeaseDocumentsForExtraction } from "@/lib/lease/sort-lease-documents-for-extraction";
@@ -191,6 +198,23 @@ export async function POST(request: Request) {
 
   let mergedStructured = structured;
 
+  const { data: primaryDoc, error: primaryDocErr } = await admin
+    .from("lease_documents")
+    .select("id, upload_date")
+    .eq("lease_id", leaseId)
+    .eq("document_type", "primary_lease")
+    .maybeSingle();
+
+  if (primaryDocErr) {
+    return NextResponse.json({ error: primaryDocErr.message }, { status: 500 });
+  }
+
+  const changeAudit: ChangeHistoryEntry[] = [];
+  const conflictAudit: DocumentConflictEntry[] = [];
+  const provenanceMutable: Record<string, FieldProvenanceEntry> = primaryDoc
+    ? { ...(buildInitialProvenance(primaryDoc) as Record<string, FieldProvenanceEntry>) }
+    : {};
+
   const { data: supplementalRows, error: supErr } = await admin
     .from("lease_documents")
     .select("id, document_type, file_url, upload_date, supersedes_fields")
@@ -217,11 +241,22 @@ export async function POST(request: Request) {
         const slice =
           docTrimmed.length > MAX_LEASE_TEXT_CHARS ? docTrimmed.slice(0, MAX_LEASE_TEXT_CHARS) : docTrimmed;
         const supResult = await analyseLeaseTextWithOpenAI(slice);
-        mergedStructured = mergeStructuredLeaseFields(
-          mergedStructured,
-          applyConservativeOverrides(supResult.data),
-          keys,
-        );
+        const patch = applyConservativeOverrides(supResult.data);
+        if (primaryDoc) {
+          mergedStructured = mergeSupplementalWithAudit(mergedStructured, patch, keys, {
+            primaryDocumentId: primaryDoc.id,
+            supplemental: {
+              id: row.id,
+              document_type: row.document_type,
+              upload_date: row.upload_date,
+            },
+            provenance: provenanceMutable,
+            changeHistory: changeAudit,
+            conflicts: conflictAudit,
+          });
+        } else {
+          mergedStructured = mergeStructuredLeaseFields(mergedStructured, patch, keys);
+        }
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : "Supplemental analyse failed.";
         const safe = truncateError(message);
@@ -268,6 +303,9 @@ export async function POST(request: Request) {
     manual_review_recommended: mergedStructured.manual_review_recommended,
     confidence_score: mergedStructured.confidence_score,
     source_snippets: mergedStructured.source_snippets as unknown as Json,
+    field_provenance: provenanceMutable as unknown as Json,
+    change_history: changeAudit as unknown as Json,
+    document_conflicts: conflictAudit as unknown as Json,
   };
 
   const { error: upsertError } = await admin.from("extracted_data").upsert(upsertRow, {

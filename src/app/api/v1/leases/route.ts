@@ -127,3 +127,57 @@ export async function POST(request: Request) {
     extractionStatus: "uploading" as const,
   });
 }
+
+/**
+ * GET /api/v1/leases — minimal list for supplemental upload picker (id, property_name, extraction_status).
+ */
+export async function GET(_request: Request) {
+  const bearer = parseBearerFromRequest(_request);
+  if (!bearer) {
+    return NextResponse.json({ error: "Missing or invalid Authorization header." }, { status: 401 });
+  }
+
+  const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getPublicEnv();
+
+  const authClient = createClient<Database>(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const {
+    data: { user },
+    error: authError,
+  } = await authClient.auth.getUser(bearer);
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!serviceRole) {
+    return NextResponse.json({ error: "Server configuration: set SUPABASE_SERVICE_ROLE_KEY." }, { status: 503 });
+  }
+
+  const admin = createClient<Database>(NEXT_PUBLIC_SUPABASE_URL, serviceRole, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const { data: rows, error } = await admin
+    .from("leases")
+    .select("id, property_name, extraction_status")
+    .eq("user_id", user.id)
+    .order("upload_date", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ leases: rows ?? [] });
+}

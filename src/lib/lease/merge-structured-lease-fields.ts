@@ -1,7 +1,7 @@
 import type { LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
 import type { Json } from "@/lib/supabase/database.types";
 
-const MERGEABLE_KEYS = new Set<keyof LeaseAnalyseOutput>([
+export const MERGEABLE_STRUCTURED_KEYS: readonly (keyof LeaseAnalyseOutput)[] = [
   "commencement_date",
   "expiry_date",
   "break_dates",
@@ -16,7 +16,13 @@ const MERGEABLE_KEYS = new Set<keyof LeaseAnalyseOutput>([
   "manual_review_recommended",
   "confidence_score",
   "source_snippets",
-]);
+] as const;
+
+const MERGEABLE_KEYS = new Set<keyof LeaseAnalyseOutput>(MERGEABLE_STRUCTURED_KEYS);
+
+export function isMergeableStructuredKey(key: string): key is keyof LeaseAnalyseOutput {
+  return MERGEABLE_KEYS.has(key as keyof LeaseAnalyseOutput);
+}
 
 /**
  * Parses `lease_documents.supersedes_fields` (JSON array of column / output keys).

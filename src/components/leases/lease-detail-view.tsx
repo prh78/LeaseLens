@@ -1,18 +1,21 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { PROPERTY_TYPES } from "@/lib/lease/property-types";
-import {
-  formatIsoDate,
-  humanizeKey,
-  jsonSnippetMap,
-  jsonStringArray,
-} from "@/lib/lease/lease-detail";
+import { LeaseChangeHistory } from "@/components/leases/lease-change-history";
+import { LeaseDetailEmptyHint, LeaseDetailSection } from "@/components/leases/lease-detail-section";
+import { LeaseDocumentConflicts } from "@/components/leases/lease-document-conflicts";
+import { LeaseDocumentTimeline } from "@/components/leases/lease-document-timeline";
+import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
+import { RiskBadge } from "@/components/leases/risk-badge";
 import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
+import { formatIsoDate, humanizeKey, jsonSnippetMap } from "@/lib/lease/lease-detail";
+import {
+  parseChangeHistory,
+  parseDocumentConflicts,
+  parseFieldProvenance,
+} from "@/lib/lease/lease-detail-json";
+import { PROPERTY_TYPES } from "@/lib/lease/property-types";
 import type { ExtractionStatus, LeaseNextActionUrgency, OverallRisk, Tables } from "@/lib/supabase/database.types";
-
-import { RiskBadge } from "@/components/leases/risk-badge";
 
 const nextActionUrgencyStyles: Record<
   LeaseNextActionUrgency,
@@ -28,6 +31,7 @@ type LeaseDetailViewProps = Readonly<{
   lease: Tables<"leases">;
   extracted: Tables<"extracted_data"> | null;
   nextAction: LeaseNextActionResult | null;
+  documents: readonly Tables<"lease_documents">[];
 }>;
 
 function propertyTypeLabel(value: string): string {
@@ -63,63 +67,7 @@ function extractionStatusPill(status: ExtractionStatus): { label: string; classN
   return map[status];
 }
 
-function SectionShell(props: Readonly<{ title: string; description?: string; children: ReactNode }>) {
-  const { title, description, children } = props;
-  return (
-    <section className="rounded-xl border border-slate-200/90 bg-white shadow-sm">
-      <div className="border-b border-slate-100 px-5 py-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">{title}</h2>
-        {description ? <p className="mt-1 text-sm text-slate-600">{description}</p> : null}
-      </div>
-      <div className="px-5 py-4">{children}</div>
-    </section>
-  );
-}
-
-function EmptyHint(props: Readonly<{ children: ReactNode }>) {
-  return (
-    <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600">
-      {props.children}
-    </p>
-  );
-}
-
-type CriticalDateRowProps = Readonly<{
-  label: string;
-  /** Display lines; empty shows an em dash. */
-  lines: string[];
-}>;
-
-function CriticalDateRow({ label, lines }: CriticalDateRowProps) {
-  const empty = lines.length === 0;
-  return (
-    <div className="border-b border-slate-100 py-4 last:border-0">
-      <p className="text-sm font-medium text-slate-700">{label}</p>
-      <div className="mt-1.5">
-        {empty ? (
-          <span className="text-sm tabular-nums text-slate-900">—</span>
-        ) : lines.length === 1 ? (
-          <span className="text-sm tabular-nums text-slate-900">{lines[0]}</span>
-        ) : (
-          <ul className="list-none space-y-1 p-0">
-            {lines.map((line, idx) => (
-              <li key={`${line}-${idx}`} className="text-sm tabular-nums text-slate-900">
-                {line}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function linesFromIsoDate(iso: string | null | undefined): string[] {
-  const formatted = formatIsoDate(iso);
-  return formatted ? [formatted] : [];
-}
-
-export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailViewProps) {
+export function LeaseDetailView({ lease, extracted, nextAction, documents }: LeaseDetailViewProps) {
   const risk = overallRiskDisplay(lease.overall_risk);
   const statusPill = extractionStatusPill(lease.extraction_status);
   const uploadLabel = new Date(lease.upload_date).toLocaleDateString(undefined, {
@@ -128,9 +76,11 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
     day: "numeric",
   });
 
-  const breakDates = extracted ? jsonStringArray(extracted.break_dates) : [];
-  const rentReviews = extracted ? jsonStringArray(extracted.rent_review_dates) : [];
   const snippets = extracted ? jsonSnippetMap(extracted.source_snippets) : {};
+  const hasSupplementalDocuments = documents.some((d) => d.document_type !== "primary_lease");
+  const provenance = extracted ? parseFieldProvenance(extracted.field_provenance) : {};
+  const changeHistory = extracted ? parseChangeHistory(extracted.change_history) : [];
+  const documentConflicts = extracted ? parseDocumentConflicts(extracted.document_conflicts) : [];
 
   const confidencePct =
     extracted?.confidence_score != null
@@ -323,15 +273,15 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
         </div>
       </section>
 
-      <SectionShell
+      <LeaseDetailSection
         title="Next critical action"
         description="Prioritised from break notices, rent reviews, lease expiry, then manual review when applicable."
       >
         {lease.extraction_status === "failed" ? (
-          <EmptyHint>
+          <LeaseDetailEmptyHint>
             Next action is unavailable because processing did not complete. Fix the issue (see above) and re-run
             upload or analysis from the dashboard.
-          </EmptyHint>
+          </LeaseDetailEmptyHint>
         ) : nextAction &&
           (lease.extraction_status === "complete" || lease.extraction_status === "calculating_risks") ? (
           <div className="space-y-3">
@@ -360,9 +310,9 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
             </div>
           </div>
         ) : lease.extraction_status === "complete" ? (
-          <EmptyHint>No upcoming action could be derived from the extracted fields for this lease.</EmptyHint>
+          <LeaseDetailEmptyHint>No upcoming action could be derived from the extracted fields for this lease.</LeaseDetailEmptyHint>
         ) : (
-          <EmptyHint>
+          <LeaseDetailEmptyHint>
             {lease.extraction_status === "calculating_risks" ? (
               <>
                 Next action and alerts are being finalised. This lease is{" "}
@@ -380,97 +330,43 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
                 .
               </>
             )}
-          </EmptyHint>
+          </LeaseDetailEmptyHint>
         )}
-      </SectionShell>
+      </LeaseDetailSection>
+
+      {hasSupplementalDocuments ? (
+        <LeaseDocumentTimeline leaseId={lease.id} documents={documents} />
+      ) : (
+        <LeaseDetailSection
+          title="Supplemental documents"
+          description="Amendments, extensions, and other instruments that modify the primary lease."
+        >
+          <LeaseDetailEmptyHint>No supplemental lease documents uploaded.</LeaseDetailEmptyHint>
+        </LeaseDetailSection>
+      )}
+
+      {extracted ? (
+        <LeaseOperativeTerms extracted={extracted} provenance={provenance} />
+      ) : (
+        <LeaseDetailSection
+          title="Current operative terms"
+          description="Resolved portfolio view after applying supplemental overrides."
+        >
+          <LeaseDetailEmptyHint>No extracted data yet. Complete text extraction first.</LeaseDetailEmptyHint>
+        </LeaseDetailSection>
+      )}
+
+      {hasSupplementalDocuments ? <LeaseChangeHistory entries={changeHistory} /> : null}
+
+      <LeaseDocumentConflicts conflicts={documentConflicts} />
 
       <div className="space-y-6">
-        {/* Critical dates */}
-        <SectionShell
-          title="Critical dates"
-          description="Key dates extracted from the lease. Always verify against the signed document."
-        >
-          {!extracted ? (
-            <EmptyHint>No extracted data yet. Complete text extraction first.</EmptyHint>
-          ) : (
-            <div>
-              <CriticalDateRow label="Commencement" lines={linesFromIsoDate(extracted.commencement_date)} />
-              <CriticalDateRow label="Expiry" lines={linesFromIsoDate(extracted.expiry_date)} />
-              <CriticalDateRow
-                label="Notice period"
-                lines={
-                  extracted.notice_period_days != null
-                    ? [
-                        `${extracted.notice_period_days} day${extracted.notice_period_days === 1 ? "" : "s"}`,
-                      ]
-                    : []
-                }
-              />
-              <CriticalDateRow
-                label="Break options"
-                lines={breakDates
-                  .map((d) => formatIsoDate(d))
-                  .filter((v): v is string => v != null && v !== "")}
-              />
-              <CriticalDateRow
-                label="Rent reviews"
-                lines={rentReviews
-                  .map((d) => formatIsoDate(d))
-                  .filter((v): v is string => v != null && v !== "")}
-              />
-            </div>
-          )}
-        </SectionShell>
-
-        {/* Obligations */}
-        <SectionShell
-          title="Obligations"
-          description="Repairing, service charge, and handback obligations captured from the document."
-        >
-          {!extracted ? (
-            <EmptyHint>No extracted data yet.</EmptyHint>
-          ) : (
-            <div className="space-y-5">
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Repairing obligation</h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-                  {extracted.repairing_obligation?.trim() || "—"}
-                </p>
-              </div>
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Service charge</h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-                  {extracted.service_charge_responsibility?.trim() || "—"}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700">
-                  Reinstatement:{" "}
-                  {extracted.reinstatement_required == null
-                    ? "—"
-                    : extracted.reinstatement_required
-                      ? "Yes"
-                      : "No"}
-                </span>
-                <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700">
-                  Vacant possession:{" "}
-                  {extracted.vacant_possession_required == null
-                    ? "—"
-                    : extracted.vacant_possession_required
-                      ? "Yes"
-                      : "No"}
-                </span>
-              </div>
-            </div>
-          )}
-        </SectionShell>
-
         {/* Risk flags */}
-        <SectionShell title="Risk flags" description="Automated signals from structured analysis.">
+        <LeaseDetailSection title="Risk flags" description="Automated signals from structured analysis.">
           {!extracted ? (
-            <EmptyHint>No structured fields yet.</EmptyHint>
+            <LeaseDetailEmptyHint>No structured fields yet.</LeaseDetailEmptyHint>
           ) : flags.length === 0 ? (
-            <EmptyHint>No automated risk flags for this lease.</EmptyHint>
+            <LeaseDetailEmptyHint>No automated risk flags for this lease.</LeaseDetailEmptyHint>
           ) : (
             <ul className="space-y-3">
               {flags.map((f) => (
@@ -489,17 +385,17 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
               ))}
             </ul>
           )}
-        </SectionShell>
+        </LeaseDetailSection>
 
         {/* Source snippets */}
-        <SectionShell
+        <LeaseDetailSection
           title="Source clause snippets"
           description="Verbatim excerpts keyed by topic. Cross-check the PDF before relying on these."
         >
           {!extracted ? (
-            <EmptyHint>No snippets yet.</EmptyHint>
+            <LeaseDetailEmptyHint>No snippets yet.</LeaseDetailEmptyHint>
           ) : Object.keys(snippets).length === 0 ? (
-            <EmptyHint>No source snippets stored for this lease.</EmptyHint>
+            <LeaseDetailEmptyHint>No source snippets stored for this lease.</LeaseDetailEmptyHint>
           ) : (
             <div className="space-y-4">
               {Object.entries(snippets).map(([key, text]) => (
@@ -515,7 +411,7 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
               ))}
             </div>
           )}
-        </SectionShell>
+        </LeaseDetailSection>
       </div>
     </div>
   );
