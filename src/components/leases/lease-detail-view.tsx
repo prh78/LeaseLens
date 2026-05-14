@@ -5,6 +5,7 @@ import { LeaseDetailEmptyHint, LeaseDetailSection } from "@/components/leases/le
 import { LeaseDocumentConflicts } from "@/components/leases/lease-document-conflicts";
 import { LeaseDocumentTimeline } from "@/components/leases/lease-document-timeline";
 import { LeaseManagementPanel } from "@/components/leases/lease-management-panel";
+import { LeaseSupplementalUpload } from "@/components/leases/lease-supplemental-upload";
 import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
 import { RiskBadge } from "@/components/leases/risk-badge";
 import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
@@ -94,7 +95,8 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
   });
 
   const snippets = extracted ? jsonSnippetMap(extracted.source_snippets) : {};
-  const hasSupplementalDocuments = documents.some((d) => d.document_type !== "primary_lease");
+  const supplementalDocuments = documents.filter((d) => d.document_type !== "primary_lease");
+  const hasSupplementalDocuments = supplementalDocuments.length > 0;
   const provenance = extracted ? parseFieldProvenance(extracted.field_provenance) : {};
   const changeHistory = extracted ? parseChangeHistory(extracted.change_history) : [];
   const documentConflicts = extracted ? parseDocumentConflicts(extracted.document_conflicts) : [];
@@ -366,16 +368,24 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         )}
       </LeaseDetailSection>
 
-      {hasSupplementalDocuments ? (
-        <LeaseDocumentTimeline leaseId={lease.id} documents={documents} />
-      ) : (
-        <LeaseDetailSection
-          title="Supplemental documents"
-          description="Amendments, extensions, and other instruments that modify the primary lease."
-        >
-          <LeaseDetailEmptyHint>No supplemental lease documents uploaded.</LeaseDetailEmptyHint>
-        </LeaseDetailSection>
-      )}
+      <LeaseDetailSection
+        title="Supplemental documents"
+        description="Amendments, extensions, and other instruments that modify the primary lease."
+      >
+        <LeaseSupplementalUpload leaseId={lease.id} extractionStatus={lease.extraction_status} />
+        {!hasSupplementalDocuments ? (
+          <div className="mt-4">
+            <LeaseDetailEmptyHint>No supplemental lease documents uploaded yet.</LeaseDetailEmptyHint>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-600">
+            Supplemental PDFs appear in the <span className="font-medium text-slate-800">document timeline</span>{" "}
+            below with the primary lease.
+          </p>
+        )}
+      </LeaseDetailSection>
+
+      <LeaseDocumentTimeline leaseId={lease.id} documents={documents} />
 
       {extracted ? (
         <LeaseOperativeTerms extracted={extracted} provenance={provenance} />
