@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { ALERT_HORIZONS_DAYS, type AlertEventKind } from "@/lib/alerts/constants";
 import { parseIsoDateUtc, startOfTodayUtc, triggerAtForHorizon, utcDateOnlyString } from "@/lib/alerts/date-helpers";
+import {
+  isBreakClauseActionable,
+  parseBreakClauseStatusMap,
+  statusForBreakDate,
+} from "@/lib/lease/break-clause-status";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 type Admin = SupabaseClient<Database>;
@@ -29,10 +34,12 @@ function eventLabel(kind: AlertEventKind, horizon: number): string {
 function collectEventDates(extracted: {
   expiry_date: string | null;
   break_dates: Json;
+  break_clause_status?: Json | null;
   rent_review_dates: Json;
 }): { kind: AlertEventKind; iso: string }[] {
   const out: { kind: AlertEventKind; iso: string }[] = [];
   const seen = new Set<string>();
+  const breakStatusMap = parseBreakClauseStatusMap(extracted.break_clause_status ?? null);
 
   const push = (kind: AlertEventKind, iso: string) => {
     const key = `${kind}:${iso}`;
@@ -47,6 +54,9 @@ function collectEventDates(extracted: {
     push("expiry", extracted.expiry_date);
   }
   for (const iso of jsonStringArray(extracted.break_dates)) {
+    if (!isBreakClauseActionable(statusForBreakDate(iso, breakStatusMap))) {
+      continue;
+    }
     push("break", iso);
   }
   for (const iso of jsonStringArray(extracted.rent_review_dates)) {

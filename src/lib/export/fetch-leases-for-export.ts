@@ -25,6 +25,7 @@ const EXPORT_LEASE_SELECT = `
     rent_commencement_date,
     expiry_date,
     break_dates,
+    break_clause_status,
     notice_period_days,
     rent_review_dates,
     ambiguous_language,

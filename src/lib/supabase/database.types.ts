@@ -138,6 +138,7 @@ export type Database = {
           break_dates: Json;
           notice_period_days: number | null;
           rent_review_dates: Json;
+          break_clause_status: Json;
           repairing_obligation: string | null;
           service_charge_responsibility: string | null;
           reinstatement_required: boolean | null;
@@ -164,6 +165,7 @@ export type Database = {
           break_dates?: Json;
           notice_period_days?: number | null;
           rent_review_dates?: Json;
+          break_clause_status?: Json;
           repairing_obligation?: string | null;
           service_charge_responsibility?: string | null;
           reinstatement_required?: boolean | null;
@@ -190,6 +192,7 @@ export type Database = {
           break_dates?: Json;
           notice_period_days?: number | null;
           rent_review_dates?: Json;
+          break_clause_status?: Json;
           repairing_obligation?: string | null;
           service_charge_responsibility?: string | null;
           reinstatement_required?: boolean | null;

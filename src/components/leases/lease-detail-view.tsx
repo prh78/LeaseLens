@@ -415,7 +415,7 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
       <LeaseDocumentTimeline leaseId={lease.id} documents={documents} />
 
       {extracted ? (
-        <LeaseOperativeTerms extracted={extracted} provenance={provenance} />
+        <LeaseOperativeTerms leaseId={lease.id} extracted={extracted} provenance={provenance} />
       ) : (
         <LeaseDetailSection
           title="Operative terms & extraction"

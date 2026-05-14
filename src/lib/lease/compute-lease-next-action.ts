@@ -1,4 +1,9 @@
 import { parseIsoDateUtc, utcDateOnlyString } from "@/lib/alerts/date-helpers";
+import {
+  isBreakClauseActionable,
+  parseBreakClauseStatusMap,
+  statusForBreakDate,
+} from "@/lib/lease/break-clause-status";
 import { jsonStringArray } from "@/lib/lease/lease-detail";
 import type { Json, LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
 
@@ -21,6 +26,7 @@ export const LEASE_NEXT_ACTION_LABEL: Record<LeaseNextActionType, string> = {
 export type ExtractedForNextAction = Readonly<{
   expiry_date: string | null;
   break_dates: Json;
+  break_clause_status?: Json | null;
   notice_period_days: number | null;
   rent_review_dates: Json;
   ambiguous_language: boolean | null;
@@ -78,9 +84,13 @@ function noticeDays(value: number | null): number | null {
 
 function tier1NoticeIsos(extracted: ExtractedForNextAction): string[] {
   const n = noticeDays(extracted.notice_period_days);
+  const statusMap = parseBreakClauseStatusMap(extracted.break_clause_status ?? null);
   const out: string[] = [];
   for (const breakIso of jsonStringArray(extracted.break_dates)) {
     if (!validDateIso(breakIso)) {
+      continue;
+    }
+    if (!isBreakClauseActionable(statusForBreakDate(breakIso, statusMap))) {
       continue;
     }
     if (n !== null) {
@@ -119,9 +129,13 @@ function needsManualReview(extracted: ExtractedForNextAction): boolean {
 
 function breakActionResults(extracted: ExtractedForNextAction): LeaseNextActionResult[] {
   const n = noticeDays(extracted.notice_period_days);
+  const statusMap = parseBreakClauseStatusMap(extracted.break_clause_status ?? null);
   const byIso = new Map<string, LeaseNextActionResult>();
   for (const breakIso of jsonStringArray(extracted.break_dates)) {
     if (!validDateIso(breakIso)) {
+      continue;
+    }
+    if (!isBreakClauseActionable(statusForBreakDate(breakIso, statusMap))) {
       continue;
     }
     const effectiveIso = n !== null ? subtractCalendarDays(breakIso, n) ?? breakIso : breakIso;

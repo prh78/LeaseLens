@@ -8,6 +8,7 @@ import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { finalizeLeaseAnalyseOutput, type LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
 import { applyLeaseDateValidationRules } from "@/lib/lease/lease-date-validations";
+import { syncBreakClauseStatusWithBreakDates } from "@/lib/lease/break-clause-status";
 import {
   buildInitialProvenance,
   mergeSupplementalWithAudit,
@@ -61,7 +62,8 @@ function isMissingExtractedAuditColumnError(message: string): boolean {
         m.includes("field_provenance") ||
         m.includes("document_conflicts") ||
         m.includes("field_extraction_meta") ||
-        m.includes("date_validation_warnings")))
+        m.includes("date_validation_warnings") ||
+        m.includes("break_clause_status")))
   );
 }
 
@@ -158,7 +160,7 @@ export async function POST(request: Request) {
 
   const { data: extractedRow, error: extractedErr } = await admin
     .from("extracted_data")
-    .select("raw_text")
+    .select("raw_text, break_clause_status")
     .eq("lease_id", leaseId)
     .maybeSingle();
 
@@ -306,6 +308,11 @@ export async function POST(request: Request) {
   const { data: afterDateRules, warnings: dateValidationWarnings } = applyLeaseDateValidationRules(mergedStructured);
   mergedStructured = afterDateRules;
 
+  const breakClauseStatusRecord = syncBreakClauseStatusWithBreakDates(
+    mergedStructured.break_dates,
+    extractedRow?.break_clause_status ?? null,
+  );
+
   const preservedRaw = extractedRow?.raw_text ?? (rawTextOverride ? rawTextOverride : null);
 
   const coreUpsertRow: Database["public"]["Tables"]["extracted_data"]["Insert"] = {
@@ -315,6 +322,7 @@ export async function POST(request: Request) {
     rent_commencement_date: mergedStructured.rent_commencement_date,
     expiry_date: mergedStructured.expiry_date,
     break_dates: mergedStructured.break_dates as unknown as Json,
+    break_clause_status: breakClauseStatusRecord as unknown as Json,
     notice_period_days: mergedStructured.notice_period_days,
     rent_review_dates: mergedStructured.rent_review_dates as unknown as Json,
     repairing_obligation: nullIfEmpty(mergedStructured.repairing_obligation),

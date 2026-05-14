@@ -1,4 +1,9 @@
 import { formatIsoDate, jsonStringArray } from "@/lib/lease/lease-detail";
+import {
+  BREAK_CLAUSE_STATUS_LABEL,
+  parseBreakClauseStatusMap,
+  statusForBreakDate,
+} from "@/lib/lease/break-clause-status";
 import type { Tables } from "@/lib/supabase/database.types";
 
 /** Field keys rendered under "Current operative terms" (same groupings as the lease UI). */
@@ -36,7 +41,17 @@ export function formatOperativeFieldLines(field: string, extracted: Tables<"extr
     }
     case "break_dates": {
       const arr = jsonStringArray(extracted.break_dates);
-      const lines = arr.map((d) => formatIsoDate(d)).filter((x): x is string => Boolean(x));
+      const map = parseBreakClauseStatusMap(extracted.break_clause_status);
+      const lines = arr
+        .map((d) => {
+          const fd = formatIsoDate(d);
+          if (!fd) {
+            return null;
+          }
+          const st = statusForBreakDate(d, map);
+          return `${fd} (${BREAK_CLAUSE_STATUS_LABEL[st]})`;
+        })
+        .filter((x): x is string => Boolean(x));
       return lines.length ? lines : ["—"];
     }
     case "notice_period_days": {

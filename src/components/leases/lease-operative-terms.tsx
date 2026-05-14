@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { LeaseBreakClausePanel } from "@/components/leases/lease-break-clause-panel";
 import { LeaseDetailSection } from "@/components/leases/lease-detail-section";
 import { jsonSnippetMap } from "@/lib/lease/lease-detail";
 import { snippetEvidenceForField } from "@/lib/lease/lease-detail-audit";
@@ -205,21 +206,16 @@ function OperativeEvidenceRow(props: Readonly<{
 }
 
 type LeaseOperativeTermsProps = Readonly<{
+  leaseId: string;
   extracted: Tables<"extracted_data">;
   provenance: Record<string, FieldProvenanceEntry>;
 }>;
 
-export function LeaseOperativeTerms({ extracted, provenance }: LeaseOperativeTermsProps) {
+export function LeaseOperativeTerms({ leaseId, extracted, provenance }: LeaseOperativeTermsProps) {
   const snippets = jsonSnippetMap(extracted.source_snippets);
   const fieldMeta = parseFieldExtractionMeta(extracted.field_extraction_meta);
   const dateFieldConfidence = parseDateFieldConfidence(extracted.date_field_confidence);
 
-  const leaseTermDateFields = [
-    "term_commencement_date",
-    "expiry_date",
-    "break_dates",
-    "notice_period_days",
-  ] as const;
   const financialDateFields = ["rent_commencement_date", "rent_review_dates"] as const;
   const obligationFields = [
     "repairing_obligation",
@@ -256,7 +252,13 @@ export function LeaseOperativeTerms({ extracted, provenance }: LeaseOperativeTer
     >
       <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-1 sm:p-2">
         <OperativeBlock title="Lease term dates">
-          {leaseTermDateFields.map((f) => renderRow(f, { showClauseEvidenceInline: true }))}
+          {renderRow("term_commencement_date", { showClauseEvidenceInline: true })}
+          {renderRow("expiry_date", { showClauseEvidenceInline: true })}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Break options</p>
+            <LeaseBreakClausePanel leaseId={leaseId} extracted={extracted} />
+          </div>
+          {renderRow("notice_period_days", { showClauseEvidenceInline: true })}
         </OperativeBlock>
         <OperativeBlock title="Financial dates">
           {financialDateFields.map((f) => renderRow(f, { showClauseEvidenceInline: true }))}

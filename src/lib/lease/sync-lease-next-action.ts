@@ -31,7 +31,7 @@ export async function syncLeaseNextAction(admin: Admin, leaseId: string): Promis
   const { data: extracted, error: exErr } = await admin
     .from("extracted_data")
     .select(
-      "expiry_date, break_dates, notice_period_days, rent_review_dates, ambiguous_language, manual_review_recommended",
+      "expiry_date, break_dates, break_clause_status, notice_period_days, rent_review_dates, ambiguous_language, manual_review_recommended",
     )
     .eq("lease_id", leaseId)
     .maybeSingle();
