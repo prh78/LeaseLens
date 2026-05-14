@@ -15,6 +15,7 @@ import {
   parseFieldProvenance,
 } from "@/lib/lease/lease-detail-json";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
+import { LEASE_DOCUMENT_TYPE_LABEL } from "@/lib/lease/lease-document-types";
 import type { ExtractionStatus, LeaseNextActionUrgency, OverallRisk, Tables } from "@/lib/supabase/database.types";
 
 const nextActionUrgencyStyles: Record<
@@ -67,6 +68,21 @@ function extractionStatusPill(status: ExtractionStatus): { label: string; classN
   return map[status];
 }
 
+const documentPdfLinkClassName =
+  "inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/5 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
+
+function PdfGlyph() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="size-4 shrink-0 text-slate-500" aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.378 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 export function LeaseDetailView({ lease, extracted, nextAction, documents }: LeaseDetailViewProps) {
   const risk = overallRiskDisplay(lease.overall_risk);
   const statusPill = extractionStatusPill(lease.extraction_status);
@@ -81,6 +97,13 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
   const provenance = extracted ? parseFieldProvenance(extracted.field_provenance) : {};
   const changeHistory = extracted ? parseChangeHistory(extracted.change_history) : [];
   const documentConflicts = extracted ? parseDocumentConflicts(extracted.document_conflicts) : [];
+
+  const primaryDocument = documents.find((d) => d.document_type === "primary_lease");
+  const canViewPrimary = Boolean(lease.file_url?.trim() || primaryDocument?.file_url?.trim());
+  const supplementalDocumentsWithFile = documents
+    .filter((d) => d.document_type !== "primary_lease" && d.file_url?.trim())
+    .slice()
+    .sort((a, b) => new Date(a.upload_date).getTime() - new Date(b.upload_date).getTime());
 
   const confidencePct =
     extracted?.confidence_score != null
@@ -144,23 +167,31 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
             {propertyTypeLabel(lease.property_type)} · Uploaded {uploadLabel}
           </p>
         </div>
-        {lease.file_url ? (
-          <div className="shrink-0 sm:pt-1">
-            <a
-              href={`/api/leases/${lease.id}/document`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/5 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="size-4 text-slate-500" aria-hidden>
-                <path
-                  fillRule="evenodd"
-                  d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.378 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              View original PDF
-            </a>
+        {canViewPrimary || supplementalDocumentsWithFile.length > 0 ? (
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:max-w-md sm:items-end sm:pt-1">
+            {canViewPrimary ? (
+              <a
+                href={`/api/leases/${lease.id}/document`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={documentPdfLinkClassName}
+              >
+                <PdfGlyph />
+                View primary lease
+              </a>
+            ) : null}
+            {supplementalDocumentsWithFile.map((doc) => (
+              <a
+                key={doc.id}
+                href={`/api/leases/${lease.id}/documents/${doc.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={documentPdfLinkClassName}
+              >
+                <PdfGlyph />
+                View {LEASE_DOCUMENT_TYPE_LABEL[doc.document_type]}
+              </a>
+            ))}
           </div>
         ) : null}
       </div>
