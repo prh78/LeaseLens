@@ -32,13 +32,16 @@ export function SidebarNav({ variant = "sidebar" }: SidebarNavProps) {
         const isOverview = item.href === "/dashboard";
         const isUpload = item.href === "/upload";
         const isExport = item.href === "/export";
+        const isSettings = item.href === "/dashboard/settings";
         const isActive = isOverview
           ? pathname === "/dashboard"
           : isUpload
             ? pathname.startsWith("/upload")
             : isExport
               ? pathname.startsWith("/export")
-              : pathname.startsWith(item.href);
+              : isSettings
+                ? pathname.startsWith("/dashboard/settings")
+                : pathname.startsWith(item.href);
 
         const base =
           "rounded-lg text-sm font-medium transition whitespace-nowrap " +

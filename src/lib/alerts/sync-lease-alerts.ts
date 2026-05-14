@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { ALERT_HORIZONS_DAYS, type AlertEventKind } from "@/lib/alerts/constants";
+import type { AlertEventKind } from "@/lib/alerts/constants";
 import { parseIsoDateUtc, startOfTodayUtc, triggerAtForHorizon, utcDateOnlyString } from "@/lib/alerts/date-helpers";
+import {
+  effectiveReminderHorizonsDays,
+  isAlertCategoryEnabled,
+  mergeNotificationSettingsFromRow,
+} from "@/lib/notifications/notification-settings";
 import {
   isBreakClauseAlertEligible,
   parseBreakClauseStatusMap,
@@ -76,7 +81,7 @@ function collectEventDates(extracted: {
 export async function syncLeaseAlerts(admin: Admin, leaseId: string): Promise<{ inserted: number }> {
   const { data: lease, error: leaseErr } = await admin
     .from("leases")
-    .select("id, extraction_status")
+    .select("id, extraction_status, user_id")
     .eq("id", leaseId)
     .maybeSingle();
 
@@ -84,6 +89,15 @@ export async function syncLeaseAlerts(admin: Admin, leaseId: string): Promise<{ 
     await admin.from("alerts").delete().eq("lease_id", leaseId).in("sent_status", ["pending", "skipped"]);
     return { inserted: 0 };
   }
+
+  const { data: settingsRow } = await admin
+    .from("user_notification_settings")
+    .select("*")
+    .eq("user_id", lease.user_id)
+    .maybeSingle();
+
+  const prefs = mergeNotificationSettingsFromRow(settingsRow);
+  const horizons = effectiveReminderHorizonsDays(prefs.reminderHorizonsDays);
 
   const { data: extracted, error: exErr } = await admin.from("extracted_data").select("*").eq("lease_id", leaseId).maybeSingle();
 
@@ -107,6 +121,9 @@ export async function syncLeaseAlerts(admin: Admin, leaseId: string): Promise<{ 
   }[] = [];
 
   for (const { kind, iso } of events) {
+    if (!isAlertCategoryEnabled(kind, prefs.alertCategories)) {
+      continue;
+    }
     const eventDay = parseIsoDateUtc(iso);
     if (!eventDay) {
       continue;
@@ -115,7 +132,7 @@ export async function syncLeaseAlerts(admin: Admin, leaseId: string): Promise<{ 
       continue;
     }
 
-    for (const horizon of ALERT_HORIZONS_DAYS) {
+    for (const horizon of horizons) {
       const trigger = triggerAtForHorizon(eventDay, horizon);
       const now = new Date();
       if (trigger.getTime() < now.getTime()) {

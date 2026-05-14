@@ -11,6 +11,7 @@ export type OverallRisk = "low" | "medium" | "high" | "critical";
 export type LeaseNextActionType = "break_notice_deadline" | "rent_review" | "lease_expiry" | "manual_review";
 export type LeaseNextActionUrgency = "low" | "medium" | "high" | "critical";
 export type AlertSentStatus = "pending" | "sent" | "skipped" | "failed";
+export type EmailDigestFrequency = "off" | "daily" | "weekly" | "monthly";
 
 export type LeaseDocumentType =
   | "primary_lease"
@@ -243,6 +244,30 @@ export type Database = {
           event_kind?: string | null;
           event_date?: string | null;
           horizon_days?: number | null;
+        };
+        Relationships: [];
+      };
+      user_notification_settings: {
+        Row: {
+          user_id: string;
+          alert_categories: Json;
+          reminder_horizons_days: number[];
+          email_digest_frequency: EmailDigestFrequency;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          alert_categories?: Json;
+          reminder_horizons_days?: number[];
+          email_digest_frequency?: EmailDigestFrequency;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          alert_categories?: Json;
+          reminder_horizons_days?: number[];
+          email_digest_frequency?: EmailDigestFrequency;
+          updated_at?: string;
         };
         Relationships: [];
       };
