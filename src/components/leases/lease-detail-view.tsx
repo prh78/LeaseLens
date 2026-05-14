@@ -9,6 +9,7 @@ import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
 import { LeaseReviewActions } from "@/components/leases/lease-review-actions";
 import { RiskBadge } from "@/components/leases/risk-badge";
 import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
+import { collectLeaseRiskFlags } from "@/lib/lease/lease-summary-risk-flags";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
 import { formatIsoDate, humanizeKey, jsonSnippetMap } from "@/lib/lease/lease-detail";
 import {
@@ -113,6 +114,18 @@ function PdfGlyph() {
   );
 }
 
+function SummaryPdfGlyph() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="size-4 shrink-0 text-slate-500" aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M3 3.5A1.5 1.5 0 0 1 4.5 2h6.879a1.5 1.5 0 0 1 1.06.44l4.122 4.121A1.5 1.5 0 0 1 17 7.622V16.5A1.5 1.5 0 0 1 15.5 18h-11A1.5 1.5 0 0 1 3 16.5v-13Zm1.5-.5a.5.5 0 0 0-.5.5V10h4.5A1.5 1.5 0 0 0 10 8.5V4H4.5Zm6.5 9.5H4.5v3a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5V11h-5.5A1.5 1.5 0 0 1 10 9.5Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 export function LeaseDetailView({ lease, extracted, nextAction, documents }: LeaseDetailViewProps) {
   const risk = overallRiskDisplay(lease.overall_risk);
   const statusPill = extractionStatusPill(lease.extraction_status);
@@ -129,8 +142,8 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
   const provenance = extracted ? parseFieldProvenance(extracted.field_provenance) : {};
   const changeHistory = extracted ? parseChangeHistory(extracted.change_history) : [];
   const documentConflicts = extracted ? parseDocumentConflicts(extracted.document_conflicts) : [];
-
   const primaryDocument = documents.find((d) => d.document_type === "primary_lease");
+  const flags = collectLeaseRiskFlags(extracted, documentConflicts);
   const canViewPrimary = Boolean(lease.file_url?.trim() || primaryDocument?.file_url?.trim());
   const supplementalDocumentsWithFile = documents
     .filter((d) => d.document_type !== "primary_lease" && d.file_url?.trim())
@@ -141,48 +154,6 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
     extracted?.confidence_score != null
       ? `${Math.round(Math.min(1, Math.max(0, extracted.confidence_score)) * 100)}%`
       : null;
-
-  const flags: { id: string; title: string; detail?: string | null; badge: "low" | "medium" | "high"; critical?: boolean }[] =
-    [];
-
-  if (extracted?.manual_review_recommended === true) {
-    flags.push({
-      id: "manual",
-      title: "Manual review recommended",
-      detail: "Model flagged this lease for human verification.",
-      badge: "high",
-    });
-  }
-  if (extracted?.ambiguous_language === true) {
-    flags.push({
-      id: "ambiguous",
-      title: "Ambiguous language",
-      detail: "Some clauses may be open to interpretation.",
-      badge: "medium",
-    });
-  }
-  if (extracted?.conditional_break_clause && extracted.conditional_break_clause.trim()) {
-    flags.push({
-      id: "conditional_break",
-      title: "Conditional break clause",
-      detail: extracted.conditional_break_clause,
-      badge: "medium",
-    });
-  }
-  if (extracted?.reinstatement_required === true) {
-    flags.push({
-      id: "reinstatement",
-      title: "Reinstatement required",
-      badge: "low",
-    });
-  }
-  if (extracted?.vacant_possession_required === true) {
-    flags.push({
-      id: "vacant",
-      title: "Vacant possession required",
-      badge: "low",
-    });
-  }
 
   return (
     <div className="space-y-8">
@@ -222,6 +193,10 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
                 View primary lease
               </a>
             ) : null}
+            <a href={`/api/leases/${lease.id}/export/summary`} className={documentPdfLinkClassName} download>
+              <SummaryPdfGlyph />
+              Export summary (PDF)
+            </a>
             {supplementalDocumentsWithFile.map((doc) => (
               <a
                 key={doc.id}

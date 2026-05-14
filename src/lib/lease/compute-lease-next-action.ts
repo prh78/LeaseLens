@@ -27,8 +27,8 @@ export type ExtractedForNextAction = Readonly<{
   manual_review_recommended: boolean | null;
 }>;
 
-function calendarDaysRemaining(eventIso: string): number | null {
-  const event = parseIsoDateUtc(eventIso);
+export function calendarDaysRemaining(iso: string): number | null {
+  const event = parseIsoDateUtc(iso);
   if (!event) {
     return null;
   }
@@ -97,7 +97,7 @@ function tier2RentReviewIsos(extracted: ExtractedForNextAction): string[] {
   return jsonStringArray(extracted.rent_review_dates).filter(validDateIso);
 }
 
-function urgencyFromDays(days: number): LeaseNextActionUrgency {
+export function urgencyFromDays(days: number): LeaseNextActionUrgency {
   if (days <= 0) {
     return "critical";
   }

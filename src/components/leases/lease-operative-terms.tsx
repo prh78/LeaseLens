@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 
 import { LeaseDetailSection } from "@/components/leases/lease-detail-section";
-import { formatIsoDate, jsonSnippetMap, jsonStringArray } from "@/lib/lease/lease-detail";
+import { jsonSnippetMap } from "@/lib/lease/lease-detail";
 import { snippetEvidenceForField } from "@/lib/lease/lease-detail-audit";
 import type { FieldProvenanceEntry } from "@/lib/lease/lease-detail-audit";
+import { formatOperativeFieldLines } from "@/lib/lease/format-operative-field-value";
 import {
   confidenceBand,
   effectiveFieldConfidence,
@@ -65,69 +66,14 @@ function formatValueForField(
   field: string,
   extracted: Tables<"extracted_data">,
 ): { lines: string[]; isMultiline: boolean } {
-  switch (field) {
-    case "commencement_date":
-    case "expiry_date": {
-      const v = field === "commencement_date" ? extracted.commencement_date : extracted.expiry_date;
-      const f = formatIsoDate(v);
-      return { lines: f ? [f] : ["—"], isMultiline: false };
-    }
-    case "break_dates": {
-      const arr = jsonStringArray(extracted.break_dates);
-      const lines = arr.map((d) => formatIsoDate(d)).filter((x): x is string => Boolean(x));
-      return { lines: lines.length ? lines : ["—"], isMultiline: lines.length > 1 };
-    }
-    case "notice_period_days": {
-      const n = extracted.notice_period_days;
-      if (n == null) {
-        return { lines: ["—"], isMultiline: false };
-      }
-      return { lines: [`${n} day${n === 1 ? "" : "s"}`], isMultiline: false };
-    }
-    case "rent_review_dates": {
-      const arr = jsonStringArray(extracted.rent_review_dates);
-      const lines = arr.map((d) => formatIsoDate(d)).filter((x): x is string => Boolean(x));
-      return { lines: lines.length ? lines : ["—"], isMultiline: lines.length > 1 };
-    }
-    case "repairing_obligation": {
-      const t = extracted.repairing_obligation?.trim();
-      return { lines: [t && t.length > 0 ? t : "—"], isMultiline: true };
-    }
-    case "service_charge_responsibility": {
-      const t = extracted.service_charge_responsibility?.trim();
-      return { lines: [t && t.length > 0 ? t : "—"], isMultiline: true };
-    }
-    case "conditional_break_clause": {
-      const t = extracted.conditional_break_clause?.trim();
-      return { lines: [t && t.length > 0 ? t : "—"], isMultiline: true };
-    }
-    case "reinstatement_required":
-      return {
-        lines: [
-          extracted.reinstatement_required == null
-            ? "—"
-            : extracted.reinstatement_required
-              ? "Yes — reinstatement required"
-              : "No",
-        ],
-        isMultiline: false,
-      };
-    case "vacant_possession_required":
-      return {
-        lines: [
-          extracted.vacant_possession_required == null
-            ? "—"
-            : extracted.vacant_possession_required
-              ? "Yes — vacant possession required"
-              : "No",
-        ],
-        isMultiline: false,
-      };
-    default:
-      return { lines: ["—"], isMultiline: false };
-  }
+  const lines = formatOperativeFieldLines(field, extracted);
+  const isMultiline =
+    lines.length > 1 ||
+    field === "repairing_obligation" ||
+    field === "service_charge_responsibility" ||
+    field === "conditional_break_clause";
+  return { lines, isMultiline };
 }
-
 function OperativeBlock(props: Readonly<{ title: string; children: ReactNode }>) {
   return (
     <div className="border-b border-stone-200/80 pb-8 last:border-0 last:pb-0">

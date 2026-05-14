@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DashboardEmptyOnboarding } from "@/components/dashboard/dashboard-empty-onboarding";
+import { DashboardExports } from "@/components/dashboard/dashboard-exports";
 import { DashboardProcessingRefresh } from "@/components/dashboard/dashboard-processing-refresh";
 import { DashboardReviewQueue } from "@/components/dashboard/dashboard-review-queue";
 import { LeasePortfolioTable } from "@/components/dashboard/lease-portfolio-table";
@@ -60,6 +61,8 @@ export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: D
           </section>
 
           <DashboardReviewQueue items={data.reviewQueue} />
+
+          <DashboardExports />
 
           <LeasePortfolioTable leases={leases} />
 
