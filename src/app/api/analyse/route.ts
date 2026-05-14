@@ -294,6 +294,14 @@ export async function POST(request: Request) {
     }
   }
 
+  if (conflictAudit.length > 0) {
+    mergedStructured = {
+      ...mergedStructured,
+      manual_review_recommended: true,
+      ambiguous_language: true,
+    };
+  }
+
   mergedStructured = applyConservativeOverrides(mergedStructured);
 
   const preservedRaw = extractedRow?.raw_text ?? (rawTextOverride ? rawTextOverride : null);
