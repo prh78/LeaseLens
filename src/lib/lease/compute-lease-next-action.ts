@@ -117,6 +117,93 @@ function needsManualReview(extracted: ExtractedForNextAction): boolean {
   return extracted.manual_review_recommended === true || extracted.ambiguous_language === true;
 }
 
+function breakActionResults(extracted: ExtractedForNextAction): LeaseNextActionResult[] {
+  const n = noticeDays(extracted.notice_period_days);
+  const byIso = new Map<string, LeaseNextActionResult>();
+  for (const breakIso of jsonStringArray(extracted.break_dates)) {
+    if (!validDateIso(breakIso)) {
+      continue;
+    }
+    const effectiveIso = n !== null ? subtractCalendarDays(breakIso, n) ?? breakIso : breakIso;
+    const days = calendarDaysRemaining(effectiveIso);
+    if (days === null) {
+      continue;
+    }
+    if (byIso.has(effectiveIso)) {
+      continue;
+    }
+    byIso.set(effectiveIso, {
+      action_type: "break_notice_deadline",
+      action_date: effectiveIso,
+      days_remaining: days,
+      urgency_level: urgencyFromDays(days),
+    });
+  }
+  return [...byIso.values()].sort((a, b) => (a.days_remaining ?? 0) - (b.days_remaining ?? 0));
+}
+
+function rentReviewActionResults(extracted: ExtractedForNextAction): LeaseNextActionResult[] {
+  const byIso = new Map<string, LeaseNextActionResult>();
+  for (const iso of tier2RentReviewIsos(extracted)) {
+    const days = calendarDaysRemaining(iso);
+    if (days === null) {
+      continue;
+    }
+    byIso.set(iso, {
+      action_type: "rent_review",
+      action_date: iso,
+      days_remaining: days,
+      urgency_level: urgencyFromDays(days),
+    });
+  }
+  return [...byIso.values()].sort((a, b) => (a.days_remaining ?? 0) - (b.days_remaining ?? 0));
+}
+
+function expiryActionResult(extracted: ExtractedForNextAction): LeaseNextActionResult | null {
+  if (!extracted.expiry_date || !validDateIso(extracted.expiry_date)) {
+    return null;
+  }
+  const days = calendarDaysRemaining(extracted.expiry_date);
+  if (days === null) {
+    return null;
+  }
+  return {
+    action_type: "lease_expiry",
+    action_date: extracted.expiry_date,
+    days_remaining: days,
+    urgency_level: urgencyFromDays(days),
+  };
+}
+
+/**
+ * All actionable items in display order: every break / notice deadline, every rent review,
+ * lease expiry, then manual review when flagged (even if dated milestones exist).
+ */
+export function computeAllLeaseActionsInPriorityOrder(
+  extracted: ExtractedForNextAction | null,
+): LeaseNextActionResult[] {
+  if (!extracted) {
+    return [];
+  }
+
+  const out: LeaseNextActionResult[] = [];
+  out.push(...breakActionResults(extracted));
+  out.push(...rentReviewActionResults(extracted));
+  const exp = expiryActionResult(extracted);
+  if (exp) {
+    out.push(exp);
+  }
+  if (needsManualReview(extracted)) {
+    out.push({
+      action_type: "manual_review",
+      action_date: null,
+      days_remaining: null,
+      urgency_level: "high",
+    });
+  }
+  return out;
+}
+
 /**
  * Strict priority: (1) break notice deadlines / break dates, (2) rent reviews,
  * (3) lease expiry, (4) manual review when no dated milestones exist.

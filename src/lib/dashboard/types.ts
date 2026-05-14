@@ -19,12 +19,23 @@ export type DashboardMetrics = Readonly<{
   highRiskLeases: number;
 }>;
 
+export type DashboardUpcomingActionItem = Readonly<{
+  label: string;
+  dueLabel: string;
+  severity: "info" | "warning" | "critical";
+  actionDate: string | null;
+  daysRemaining: number | null;
+}>;
+
 export type DashboardAlertRow = Readonly<{
   id: string;
   leaseId: string;
+  propertyName: string;
   title: string;
   dueLabel: string;
   severity: "info" | "warning" | "critical";
+  /** Full priority list (breaks → reviews → expiry → manual). First entry matches summary. */
+  allActionsInPriorityOrder: readonly DashboardUpcomingActionItem[];
 }>;
 
 export type DashboardData = Readonly<{
