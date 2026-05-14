@@ -3,7 +3,6 @@ import Link from "next/link";
 import { DashboardProcessingRefresh } from "@/components/dashboard/dashboard-processing-refresh";
 import { LeasePortfolioTable } from "@/components/dashboard/lease-portfolio-table";
 import { MetricStatCard } from "@/components/dashboard/metric-stat-card";
-import { UpcomingAlertsPanel } from "@/components/dashboard/upcoming-alerts-panel";
 import { DashboardLeasePipeline } from "@/components/leases/dashboard-lease-pipeline";
 import type { DashboardData } from "@/lib/dashboard/types";
 
@@ -14,7 +13,7 @@ type DashboardViewProps = Readonly<{
 }>;
 
 export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: DashboardViewProps) {
-  const { metrics, leases, alerts } = data;
+  const { metrics, leases } = data;
 
   return (
     <div className="space-y-8">
@@ -45,14 +44,7 @@ export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: D
         />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <LeasePortfolioTable leases={leases} />
-        </div>
-        <div className="lg:col-span-1">
-          <UpcomingAlertsPanel alerts={alerts} />
-        </div>
-      </div>
+      <LeasePortfolioTable leases={leases} />
 
       <p className="text-center text-xs text-slate-400">
         Need another document?{" "}

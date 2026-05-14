@@ -6,13 +6,7 @@ import {
 } from "@/lib/lease/compute-lease-next-action";
 import { effectiveLeaseNextAction, extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
-import type {
-  DashboardAlertRow,
-  DashboardData,
-  DashboardLeaseRow,
-  DashboardMetrics,
-  DashboardUpcomingActionItem,
-} from "@/lib/dashboard/types";
+import type { DashboardData, DashboardLeaseRow, DashboardMetrics, DashboardUpcomingActionItem } from "@/lib/dashboard/types";
 import type { Tables } from "@/lib/supabase/database.types";
 
 type LeaseWithExtracted = Tables<"leases"> & {
@@ -27,20 +21,7 @@ function normalizedExtracted(row: LeaseWithExtracted): Tables<"extracted_data"> 
   return Array.isArray(ed) ? ed[0] ?? null : ed;
 }
 
-function urgencyRank(level: NonNullable<LeaseNextActionResult["urgency_level"]>): number {
-  switch (level) {
-    case "critical":
-      return 0;
-    case "high":
-      return 1;
-    case "medium":
-      return 2;
-    default:
-      return 3;
-  }
-}
-
-function severityFromUrgency(level: LeaseNextActionResult["urgency_level"]): DashboardAlertRow["severity"] {
+function severityFromUrgency(level: LeaseNextActionResult["urgency_level"]): DashboardUpcomingActionItem["severity"] {
   if (level === "critical") {
     return "critical";
   }
@@ -80,7 +61,12 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
   };
 
   const leases: DashboardLeaseRow[] = leaseRows.map((row) => {
-    const next = effectiveLeaseNextAction(row, normalizedExtracted(row));
+    const extracted = normalizedExtracted(row);
+    const next = effectiveLeaseNextAction(row, extracted);
+    const allActionsInPriorityOrder: DashboardUpcomingActionItem[] = next
+      ? allActionResultsForRow(row, next).map(resultToUpcomingItem)
+      : [];
+
     return {
       id: row.id,
       propertyName: row.property_name,
@@ -91,42 +77,9 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
       urgencyLevel: next?.urgency_level ?? null,
       riskLevel: row.overall_risk,
       extractionStatus: row.extraction_status,
+      allActionsInPriorityOrder: allActionsInPriorityOrder,
     };
   });
 
-  const actionAlerts: DashboardAlertRow[] = leaseRows
-    .map((row) => {
-      const extracted = normalizedExtracted(row);
-      const next = effectiveLeaseNextAction(row, extracted);
-      if (!next) {
-        return null;
-      }
-      const allResults = allActionResultsForRow(row, next);
-      const primary = allResults[0]!;
-      return { row, primary, allResults };
-    })
-    .filter((x): x is { row: LeaseWithExtracted; primary: LeaseNextActionResult; allResults: LeaseNextActionResult[] } =>
-      x !== null,
-    )
-    .sort((a, b) => {
-      const ur = urgencyRank(a.primary.urgency_level) - urgencyRank(b.primary.urgency_level);
-      if (ur !== 0) {
-        return ur;
-      }
-      const da = a.primary.days_remaining ?? 9999;
-      const db = b.primary.days_remaining ?? 9999;
-      return da - db;
-    })
-    .slice(0, 20)
-    .map(({ row, primary, allResults }) => ({
-      id: `lease-next-${row.id}`,
-      leaseId: row.id,
-      propertyName: row.property_name,
-      title: `${row.property_name} — ${LEASE_NEXT_ACTION_LABEL[primary.action_type]}`,
-      dueLabel: formatNextActionDueLabel(primary),
-      severity: severityFromUrgency(primary.urgency_level),
-      allActionsInPriorityOrder: allResults.map(resultToUpcomingItem),
-    }));
-
-  return { metrics, leases, alerts: actionAlerts };
+  return { metrics, leases };
 }

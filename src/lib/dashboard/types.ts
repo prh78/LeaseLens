@@ -1,5 +1,13 @@
 import type { ExtractionStatus, LeaseNextActionType, LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
 
+export type DashboardUpcomingActionItem = Readonly<{
+  label: string;
+  dueLabel: string;
+  severity: "info" | "warning" | "critical";
+  actionDate: string | null;
+  daysRemaining: number | null;
+}>;
+
 /** One row for the portfolio table (client-safe / serializable). */
 export type DashboardLeaseRow = Readonly<{
   id: string;
@@ -11,6 +19,8 @@ export type DashboardLeaseRow = Readonly<{
   urgencyLevel: LeaseNextActionUrgency | null;
   riskLevel: OverallRisk;
   extractionStatus: ExtractionStatus;
+  /** Ordered actions (same order as portfolio expand list). Empty when none. */
+  allActionsInPriorityOrder: readonly DashboardUpcomingActionItem[];
 }>;
 
 export type DashboardMetrics = Readonly<{
@@ -19,27 +29,7 @@ export type DashboardMetrics = Readonly<{
   highRiskLeases: number;
 }>;
 
-export type DashboardUpcomingActionItem = Readonly<{
-  label: string;
-  dueLabel: string;
-  severity: "info" | "warning" | "critical";
-  actionDate: string | null;
-  daysRemaining: number | null;
-}>;
-
-export type DashboardAlertRow = Readonly<{
-  id: string;
-  leaseId: string;
-  propertyName: string;
-  title: string;
-  dueLabel: string;
-  severity: "info" | "warning" | "critical";
-  /** Ordered extras after the summary (breaks → reviews → expiry → manual). First entry is shown collapsed. */
-  allActionsInPriorityOrder: readonly DashboardUpcomingActionItem[];
-}>;
-
 export type DashboardData = Readonly<{
   metrics: DashboardMetrics;
   leases: DashboardLeaseRow[];
-  alerts: DashboardAlertRow[];
 }>;
