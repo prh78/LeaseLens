@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { LeaseExtractionProgress } from "@/components/dashboard/lease-extraction-progress";
 import type { DashboardLeaseRow, DashboardUpcomingActionItem } from "@/lib/dashboard/types";
+import { formatIsoDate } from "@/lib/lease/lease-detail";
 import type { LeaseTermStatus } from "@/lib/lease/lease-term-status";
 import type { LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
 
@@ -102,11 +103,12 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] text-left text-sm">
+          <table className="w-full min-w-[1120px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-5 py-3 font-medium">Property name</th>
                 <th className="px-5 py-3 font-medium">Term</th>
+                <th className="px-5 py-3 font-medium">Lease expiry</th>
                 <th className="px-5 py-3 font-medium">Next critical action</th>
                 <th className="px-5 py-3 font-medium">Action date</th>
                 <th className="px-5 py-3 font-medium">Days remaining</th>
@@ -123,6 +125,7 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                 const href = `/lease/${lease.id}`;
                 const term = termStyles[lease.termStatus];
                 const isExpired = lease.termStatus === "expired";
+                const expiryLabel = formatIsoDate(lease.expiryDate);
 
                 const go = () => {
                   router.push(href);
@@ -183,6 +186,9 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                           {term.label}
                         </span>
                       </td>
+                      <td className="whitespace-nowrap px-5 py-3.5 tabular-nums text-slate-700">
+                        {expiryLabel ?? "—"}
+                      </td>
                       <td className="max-w-[280px] px-5 py-3.5 align-top text-slate-600">
                         {isExpired ? (
                           <span className="sr-only">No next critical action; lease term has expired.</span>
@@ -242,7 +248,7 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                     </tr>
                     {expandable && open ? (
                       <tr className="bg-slate-50/60">
-                        <td colSpan={8} className="px-5 py-3" data-no-lease-nav>
+                        <td colSpan={9} className="px-5 py-3" data-no-lease-nav>
                           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Further actions (priority order)
                           </p>

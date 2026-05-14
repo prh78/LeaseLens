@@ -9,7 +9,9 @@ import {
   LEASE_DOCUMENT_TYPE_LABEL,
   isLeaseDocumentType,
 } from "@/lib/lease/lease-document-types";
+import { formatIsoDate } from "@/lib/lease/lease-detail";
 import { leaseDocumentPdfStoragePath, leasePdfStoragePath } from "@/lib/lease/lease-storage-path";
+import type { LeaseTermStatus } from "@/lib/lease/lease-term-status";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
 import {
   LEASE_AFFECTED_AREA_LABEL,
@@ -23,7 +25,25 @@ import type { LeaseDocumentType } from "@/lib/supabase/database.types";
 
 const BUCKET = "leases";
 
-type LeaseRow = Readonly<{ id: string; property_name: string; extraction_status: string }>;
+type LeaseRow = Readonly<{
+  id: string;
+  property_name: string;
+  extraction_status: string;
+  term_status: LeaseTermStatus;
+  expiry_date: string | null;
+}>;
+
+function leasePickerOptionLabel(l: LeaseRow): string {
+  const name = l.property_name;
+  if (l.term_status === "expired") {
+    const formatted = formatIsoDate(l.expiry_date);
+    return formatted ? `${name} (Expired · ${formatted})` : `${name} (Expired)`;
+  }
+  if (l.term_status === "unknown") {
+    return `${name} (Term unknown)`;
+  }
+  return `${name} (Active)`;
+}
 
 export function LeaseUploadForm() {
   const router = useRouter();
@@ -55,7 +75,16 @@ export function LeaseUploadForm() {
         const res = await fetch("/api/v1/leases", {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
-        const payload = (await res.json()) as { leases?: LeaseRow[]; error?: string };
+        const payload = (await res.json()) as {
+          leases?: {
+            id: string;
+            property_name: string;
+            extraction_status: string;
+            term_status?: LeaseTermStatus;
+            expiry_date?: string | null;
+          }[];
+          error?: string;
+        };
         if (!res.ok) {
           if (!cancelled) {
             setLoadErr(payload.error ?? "Could not load leases.");
@@ -63,7 +92,15 @@ export function LeaseUploadForm() {
           return;
         }
         if (!cancelled) {
-          setLeases(payload.leases ?? []);
+          setLeases(
+            (payload.leases ?? []).map((r) => ({
+              id: r.id,
+              property_name: r.property_name,
+              extraction_status: r.extraction_status,
+              term_status: r.term_status ?? "unknown",
+              expiry_date: r.expiry_date ?? null,
+            })),
+          );
           setLoadErr(null);
         }
       } catch {
@@ -397,7 +434,7 @@ export function LeaseUploadForm() {
                 .filter((l) => l.extraction_status === "complete")
                 .map((l) => (
                   <option key={l.id} value={l.id}>
-                    {l.property_name}
+                    {leasePickerOptionLabel(l)}
                   </option>
                 ))}
             </select>

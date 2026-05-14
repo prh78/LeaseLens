@@ -69,11 +69,14 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
     const extracted = normalizedExtracted(row);
     const termStatus = leaseTermStatusFromExpiryDate(extracted?.expiry_date ?? null);
 
+    const expiryDate = extracted?.expiry_date ?? null;
+
     if (termStatus === "expired") {
       return {
         id: row.id,
         propertyName: row.property_name,
         termStatus,
+        expiryDate,
         nextCriticalAction: "—",
         actionType: null,
         actionDate: null,
@@ -94,6 +97,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
       id: row.id,
       propertyName: row.property_name,
       termStatus,
+      expiryDate,
       nextCriticalAction: next ? LEASE_NEXT_ACTION_LABEL[next.action_type] : "—",
       actionType: next?.action_type ?? null,
       actionDate: next?.action_date ?? null,

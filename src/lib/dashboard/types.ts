@@ -15,6 +15,8 @@ export type DashboardLeaseRow = Readonly<{
   propertyName: string;
   /** From `extracted_data.expiry_date` vs today (UTC calendar). */
   termStatus: LeaseTermStatus;
+  /** ISO calendar date `YYYY-MM-DD` from `extracted_data`, or null when unknown / not extracted. */
+  expiryDate: string | null;
   nextCriticalAction: string;
   actionType: LeaseNextActionType | null;
   actionDate: string | null;

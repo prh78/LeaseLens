@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
+import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
 import { isPropertyType } from "@/lib/lease/property-types";
 import type { Database } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
@@ -128,8 +129,15 @@ export async function POST(request: Request) {
   });
 }
 
+type LeaseListRow = Readonly<{
+  id: string;
+  property_name: string;
+  extraction_status: string;
+}>;
+
 /**
- * GET /api/v1/leases — minimal list for supplemental upload picker (id, property_name, extraction_status).
+ * GET /api/v1/leases — list for supplemental upload picker (id, property_name, extraction_status, term_status,
+ * expiry_date).
  */
 export async function GET(_request: Request) {
   const bearer = parseBearerFromRequest(_request);
@@ -179,5 +187,40 @@ export async function GET(_request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ leases: rows ?? [] });
+  const list = (rows ?? []) as LeaseListRow[];
+  const ids = list.map((r) => r.id);
+
+  const expiryByLeaseId = new Map<string, string | null>();
+  if (ids.length > 0) {
+    const { data: extractedRows, error: exErr } = await admin
+      .from("extracted_data")
+      .select("lease_id, expiry_date")
+      .in("lease_id", ids);
+
+    if (exErr) {
+      return NextResponse.json({ error: exErr.message }, { status: 500 });
+    }
+
+    for (const row of extractedRows ?? []) {
+      const raw = row.expiry_date;
+      expiryByLeaseId.set(
+        row.lease_id,
+        typeof raw === "string" && raw.trim() ? raw.trim() : null,
+      );
+    }
+  }
+
+  const leases = list.map((row) => {
+    const expiry_date = expiryByLeaseId.get(row.id) ?? null;
+    const term_status = leaseTermStatusFromExpiryDate(expiry_date);
+    return {
+      id: row.id,
+      property_name: row.property_name,
+      extraction_status: row.extraction_status,
+      term_status,
+      expiry_date,
+    };
+  });
+
+  return NextResponse.json({ leases });
 }
