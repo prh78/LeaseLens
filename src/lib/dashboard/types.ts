@@ -29,7 +29,18 @@ export type DashboardMetrics = Readonly<{
   highRiskLeases: number;
 }>;
 
+/** One dated or manual-review row for the dashboard alerts list (sorted server-side). */
+export type DashboardDeadlineAlert = Readonly<{
+  leaseId: string;
+  propertyName: string;
+  eventType: string;
+  dueDate: string;
+  urgencyLevel: LeaseNextActionUrgency;
+}>;
+
 export type DashboardData = Readonly<{
   metrics: DashboardMetrics;
   leases: DashboardLeaseRow[];
+  /** Actionable upcoming milestones from extraction, nearest deadline first. */
+  deadlineAlerts: readonly DashboardDeadlineAlert[];
 }>;
