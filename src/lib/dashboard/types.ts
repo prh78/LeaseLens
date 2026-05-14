@@ -34,7 +34,7 @@ export type DashboardAlertRow = Readonly<{
   title: string;
   dueLabel: string;
   severity: "info" | "warning" | "critical";
-  /** Full priority list (breaks → reviews → expiry → manual). First entry matches summary. */
+  /** Ordered extras after the summary (breaks → reviews → expiry → manual). First entry is shown collapsed. */
   allActionsInPriorityOrder: readonly DashboardUpcomingActionItem[];
 }>;
 

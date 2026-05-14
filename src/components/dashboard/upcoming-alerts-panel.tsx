@@ -44,8 +44,8 @@ export function UpcomingAlertsPanel({ alerts }: UpcomingAlertsPanelProps) {
       <div className="border-b border-slate-200 px-5 py-4">
         <h2 className="text-base font-semibold text-slate-900">Upcoming actions</h2>
         <p className="mt-0.5 text-sm text-slate-500">
-          Next step per lease. When there are several actions, click the row to show the full prioritised list
-          (breaks → rent reviews → expiry → manual review).
+          Next step per lease. When there are further actions, click the row to reveal the other actions in
+          priority order (breaks → rent reviews → expiry → manual review).
         </p>
       </div>
       {alerts.length === 0 ? (
@@ -83,8 +83,8 @@ export function UpcomingAlertsPanel({ alerts }: UpcomingAlertsPanelProps) {
                       aria-expanded={open}
                       aria-label={
                         open
-                          ? `Hide full action list for ${alert.propertyName}`
-                          : `Show full action list for ${alert.propertyName}`
+                          ? `Hide other actions for ${alert.propertyName}`
+                          : `Reveal other actions for ${alert.propertyName}`
                       }
                       className="flex min-w-0 flex-1 items-start gap-2 rounded-lg px-2 py-2.5 text-left transition hover:bg-slate-50"
                     >
@@ -107,8 +107,8 @@ export function UpcomingAlertsPanel({ alerts }: UpcomingAlertsPanelProps) {
 
                 {expandable && open ? (
                   <ul className="mb-2 ml-4 space-y-2 border-l-2 border-slate-200 py-1 pl-4">
-                    {alert.allActionsInPriorityOrder.map((item, idx) => (
-                      <li key={`${alert.id}-action-${idx}`} className="flex gap-2 text-sm">
+                    {alert.allActionsInPriorityOrder.slice(1).map((item, idx) => (
+                      <li key={`${alert.id}-action-${idx + 1}`} className="flex gap-2 text-sm">
                         <span
                           className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${severityDot[item.severity]}`}
                           aria-hidden
