@@ -6,6 +6,7 @@ import {
 } from "@/lib/lease/compute-lease-next-action";
 import { effectiveLeaseNextAction, extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
+import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
 import type { DashboardData, DashboardLeaseRow, DashboardMetrics, DashboardUpcomingActionItem } from "@/lib/dashboard/types";
 import type { Tables } from "@/lib/supabase/database.types";
 
@@ -54,14 +55,36 @@ function resultToUpcomingItem(r: LeaseNextActionResult): DashboardUpcomingAction
 export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardData {
   const metrics: DashboardMetrics = {
     totalLeases: leaseRows.length,
-    criticalActionsDue: leaseRows.filter((row) =>
-      isLeaseCriticalActionDue(effectiveLeaseNextAction(row, normalizedExtracted(row))),
-    ).length,
+    criticalActionsDue: leaseRows.filter((row) => {
+      const extracted = normalizedExtracted(row);
+      if (leaseTermStatusFromExpiryDate(extracted?.expiry_date ?? null) === "expired") {
+        return false;
+      }
+      return isLeaseCriticalActionDue(effectiveLeaseNextAction(row, extracted));
+    }).length,
     highRiskLeases: leaseRows.filter((row) => row.overall_risk === "high").length,
   };
 
   const leases: DashboardLeaseRow[] = leaseRows.map((row) => {
     const extracted = normalizedExtracted(row);
+    const termStatus = leaseTermStatusFromExpiryDate(extracted?.expiry_date ?? null);
+
+    if (termStatus === "expired") {
+      return {
+        id: row.id,
+        propertyName: row.property_name,
+        termStatus,
+        nextCriticalAction: "—",
+        actionType: null,
+        actionDate: null,
+        daysRemaining: null,
+        urgencyLevel: null,
+        riskLevel: row.overall_risk,
+        extractionStatus: row.extraction_status,
+        allActionsInPriorityOrder: [],
+      };
+    }
+
     const next = effectiveLeaseNextAction(row, extracted);
     const allActionsInPriorityOrder: DashboardUpcomingActionItem[] = next
       ? allActionResultsForRow(row, next).map(resultToUpcomingItem)
@@ -70,6 +93,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
     return {
       id: row.id,
       propertyName: row.property_name,
+      termStatus,
       nextCriticalAction: next ? LEASE_NEXT_ACTION_LABEL[next.action_type] : "—",
       actionType: next?.action_type ?? null,
       actionDate: next?.action_date ?? null,

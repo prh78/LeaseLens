@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { LeaseExtractionProgress } from "@/components/dashboard/lease-extraction-progress";
 import type { DashboardLeaseRow, DashboardUpcomingActionItem } from "@/lib/dashboard/types";
+import type { LeaseTermStatus } from "@/lib/lease/lease-term-status";
 import type { LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
 
 const NO_LEASE_NAV = "[data-no-lease-nav]";
@@ -40,6 +41,12 @@ const severityDot: Record<DashboardUpcomingActionItem["severity"], string> = {
   info: "bg-slate-400",
   warning: "bg-amber-500",
   critical: "bg-red-500",
+};
+
+const termStyles: Record<LeaseTermStatus, { label: string; className: string }> = {
+  active: { label: "Active", className: "bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200/80" },
+  expired: { label: "Expired", className: "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200" },
+  unknown: { label: "Unknown", className: "bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200/90" },
 };
 
 function ChevronIcon({ open }: Readonly<{ open: boolean }>) {
@@ -78,8 +85,9 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
         <p className="mt-0.5 text-sm text-slate-500">
           Next action from structured data (break notice → rent review → expiry → manual review). When there are
           further actions for a lease, use the control in{" "}
-          <span className="font-medium text-slate-600">Next critical action</span> to reveal the rest in priority order.
-          Click elsewhere on the row to open the lease. Live extraction progress updates while you stay on this page.
+          <span className="font-medium text-slate-600">Next critical action</span> to reveal the rest in priority order
+          (not shown for expired terms). Click elsewhere on the row to open the lease. Live extraction progress updates
+          while you stay on this page.
         </p>
       </div>
       {leases.length === 0 ? (
@@ -94,10 +102,11 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[1040px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-5 py-3 font-medium">Property name</th>
+                <th className="px-5 py-3 font-medium">Term</th>
                 <th className="px-5 py-3 font-medium">Next critical action</th>
                 <th className="px-5 py-3 font-medium">Action date</th>
                 <th className="px-5 py-3 font-medium">Days remaining</th>
@@ -112,6 +121,8 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                 const urg =
                   lease.urgencyLevel != null ? urgencyStyles[lease.urgencyLevel] : null;
                 const href = `/lease/${lease.id}`;
+                const term = termStyles[lease.termStatus];
+                const isExpired = lease.termStatus === "expired";
 
                 const go = () => {
                   router.push(href);
@@ -131,8 +142,8 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                   }
                 };
 
-                const primary = lease.allActionsInPriorityOrder[0];
-                const expandable = lease.allActionsInPriorityOrder.length > 1;
+                const primary = isExpired ? undefined : lease.allActionsInPriorityOrder[0];
+                const expandable = !isExpired && lease.allActionsInPriorityOrder.length > 1;
                 const open = expandedLeaseId === lease.id;
 
                 const actionSummary = primary ? (
@@ -165,8 +176,17 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                           {lease.propertyName}
                         </span>
                       </td>
+                      <td className="whitespace-nowrap px-5 py-3.5 align-top">
+                        <span
+                          className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${term.className}`}
+                        >
+                          {term.label}
+                        </span>
+                      </td>
                       <td className="max-w-[280px] px-5 py-3.5 align-top text-slate-600">
-                        {primary ? (
+                        {isExpired ? (
+                          <span className="sr-only">No next critical action; lease term has expired.</span>
+                        ) : primary ? (
                           <div data-no-lease-nav className="flex items-start gap-1">
                             {expandable ? (
                               <button
@@ -193,13 +213,13 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                         )}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 tabular-nums text-slate-700">
-                        {lease.actionDate ?? "—"}
+                        {isExpired ? "" : lease.actionDate ?? "—"}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 tabular-nums text-slate-700">
-                        {lease.daysRemaining === null ? "—" : lease.daysRemaining}
+                        {isExpired ? "" : lease.daysRemaining === null ? "—" : lease.daysRemaining}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5">
-                        {urg ? (
+                        {isExpired ? null : urg ? (
                           <span
                             className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${urg.className}`}
                           >
@@ -222,7 +242,7 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                     </tr>
                     {expandable && open ? (
                       <tr className="bg-slate-50/60">
-                        <td colSpan={7} className="px-5 py-3" data-no-lease-nav>
+                        <td colSpan={8} className="px-5 py-3" data-no-lease-nav>
                           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Further actions (priority order)
                           </p>

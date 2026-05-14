@@ -1,3 +1,4 @@
+import type { LeaseTermStatus } from "@/lib/lease/lease-term-status";
 import type { ExtractionStatus, LeaseNextActionType, LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
 
 export type DashboardUpcomingActionItem = Readonly<{
@@ -12,6 +13,8 @@ export type DashboardUpcomingActionItem = Readonly<{
 export type DashboardLeaseRow = Readonly<{
   id: string;
   propertyName: string;
+  /** From `extracted_data.expiry_date` vs today (UTC calendar). */
+  termStatus: LeaseTermStatus;
   nextCriticalAction: string;
   actionType: LeaseNextActionType | null;
   actionDate: string | null;
