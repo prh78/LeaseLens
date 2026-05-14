@@ -60,8 +60,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ lease
   }
 
   const storagePath = typeof body.storagePath === "string" ? body.storagePath.trim() : "";
-  if (!storagePath || !isValidLeasePdfStoragePath(user.id, leaseId, storagePath)) {
-    return NextResponse.json({ error: "Invalid storage path for this lease." }, { status: 400 });
+  if (!storagePath) {
+    return NextResponse.json({ error: "Missing storage path." }, { status: 400 });
   }
 
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -121,7 +121,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ lease
     isValidLeaseDocumentPdfStoragePath(user.id, leaseId, primaryDoc.id, storagePath) ||
     isValidLeasePdfStoragePath(user.id, leaseId, storagePath);
 
-  if (!storagePath || !pathOk) {
+  if (!pathOk) {
     return NextResponse.json({ error: "Invalid storage path for this lease." }, { status: 400 });
   }
 
