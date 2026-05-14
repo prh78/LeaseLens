@@ -120,6 +120,9 @@ export function buildInitialProvenance(primary: Readonly<{ id: string; upload_da
   const label = LEASE_DOCUMENT_TYPE_LABEL.primary_lease;
   const out: Record<string, FieldProvenanceEntry> = {};
   for (const key of MERGEABLE_STRUCTURED_KEYS) {
+    if (key === "field_extraction_meta" || key === "source_snippets") {
+      continue;
+    }
     out[key] = {
       source_document_id: primary.id,
       source_document_type: "primary_lease",
@@ -161,7 +164,7 @@ export function mergeSupplementalWithAudit(
   const appliedStructuredKeys: (keyof LeaseAnalyseOutput)[] = [];
   let anyConflictThisPatch = false;
 
-  const structuredKeys = keys.filter((k) => k !== "source_snippets");
+  const structuredKeys = keys.filter((k) => k !== "source_snippets" && k !== "field_extraction_meta");
 
   for (const key of structuredKeys) {
     const keyStr = String(key);
@@ -230,6 +233,25 @@ export function mergeSupplementalWithAudit(
 
   if (keys.includes("source_snippets") && !anyConflictThisPatch) {
     result.source_snippets = { ...result.source_snippets, ...patch.source_snippets };
+  }
+
+  result.field_extraction_meta = { ...(merged.field_extraction_meta ?? {}) };
+  for (const key of appliedStructuredKeys) {
+    const fk = String(key);
+    const pm = patch.field_extraction_meta?.[fk];
+    if (pm && typeof pm === "object") {
+      const cur = result.field_extraction_meta[fk] ?? {};
+      result.field_extraction_meta = {
+        ...result.field_extraction_meta,
+        [fk]: { ...cur, ...pm },
+      };
+    }
+  }
+  if (keys.includes("field_extraction_meta") && !anyConflictThisPatch) {
+    result.field_extraction_meta = {
+      ...(merged.field_extraction_meta ?? {}),
+      ...patch.field_extraction_meta,
+    };
   }
 
   return result;

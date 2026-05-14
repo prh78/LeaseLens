@@ -52,6 +52,39 @@ export function coerceSourceSnippetsInput(raw: unknown): Record<string, string> 
   return out;
 }
 
+const fieldExtractionMetaEntrySchema = z
+  .object({
+    confidence: z.union([z.number().min(0).max(1), z.null()]).optional(),
+    rationale: z.union([z.string(), z.null()]).optional(),
+    clause_reference: z.union([z.string(), z.null()]).optional(),
+  })
+  .strip();
+
+export type FieldExtractionMetaEntryOutput = z.infer<typeof fieldExtractionMetaEntrySchema>;
+
+/**
+ * Per-field explainability from the model (clause cite, rationale, local confidence).
+ */
+export function coerceFieldExtractionMetaInput(raw: unknown): Record<string, FieldExtractionMetaEntryOutput> {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const out: Record<string, FieldExtractionMetaEntryOutput> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k !== "string" || k.trim() === "") {
+      continue;
+    }
+    if (v == null || typeof v !== "object" || Array.isArray(v)) {
+      continue;
+    }
+    const parsed = fieldExtractionMetaEntrySchema.safeParse(v);
+    if (parsed.success) {
+      out[k] = parsed.data;
+    }
+  }
+  return out;
+}
+
 /**
  * Strict schema for OpenAI lease structured extraction.
  * All keys must be present in the model response (strict object).
@@ -72,6 +105,10 @@ export const leaseAnalyseOutputSchema = z
     manual_review_recommended: z.boolean(),
     confidence_score: z.union([z.number().min(0).max(1), z.null()]),
     source_snippets: z.preprocess(coerceSourceSnippetsInput, z.record(z.string(), z.string())),
+    field_extraction_meta: z.preprocess(
+      coerceFieldExtractionMetaInput,
+      z.record(z.string(), fieldExtractionMetaEntrySchema),
+    ),
   })
   .strict();
 

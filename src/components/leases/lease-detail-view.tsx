@@ -414,7 +414,7 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         {/* Source snippets */}
         <LeaseDetailSection
           title="Source clause snippets"
-          description="Verbatim excerpts keyed by topic. Cross-check the PDF before relying on these."
+          description="Full snippet index from the last analyse pass. Per-field excerpts and rationale also appear under Current operative terms → Extraction record."
         >
           {!extracted ? (
             <LeaseDetailEmptyHint>No snippets yet.</LeaseDetailEmptyHint>

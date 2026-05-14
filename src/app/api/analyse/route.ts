@@ -61,7 +61,10 @@ function isMissingExtractedAuditColumnError(message: string): boolean {
   return (
     m.includes("schema cache") ||
     (m.includes("could not find") &&
-      (m.includes("change_history") || m.includes("field_provenance") || m.includes("document_conflicts")))
+      (m.includes("change_history") ||
+        m.includes("field_provenance") ||
+        m.includes("document_conflicts") ||
+        m.includes("field_extraction_meta")))
   );
 }
 
@@ -323,6 +326,7 @@ export async function POST(request: Request) {
     manual_review_recommended: mergedStructured.manual_review_recommended,
     confidence_score: mergedStructured.confidence_score,
     source_snippets: mergedStructured.source_snippets as unknown as Json,
+    field_extraction_meta: mergedStructured.field_extraction_meta as unknown as Json,
   };
 
   const fullUpsertRow: Database["public"]["Tables"]["extracted_data"]["Insert"] = {
@@ -336,7 +340,7 @@ export async function POST(request: Request) {
 
   if (upsertError && isMissingExtractedAuditColumnError(upsertError.message)) {
     console.warn(
-      "[analyse] extracted_data audit columns missing from database; apply migration 20260521130000_lease_detail_audit_columns.sql. Saving structured fields without provenance / change history / conflicts.",
+      "[analyse] extracted_data audit / explainability columns missing from database; apply migrations 20260521130000 and 20260522120000. Saving structured fields without provenance / change history / conflicts / field_extraction_meta.",
     );
     upsertError = (await admin.from("extracted_data").upsert(coreUpsertRow, { onConflict: "lease_id" })).error;
   }

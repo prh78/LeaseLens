@@ -16,6 +16,7 @@ export const MERGEABLE_STRUCTURED_KEYS: readonly (keyof LeaseAnalyseOutput)[] = 
   "manual_review_recommended",
   "confidence_score",
   "source_snippets",
+  "field_extraction_meta",
 ] as const;
 
 const MERGEABLE_KEYS = new Set<keyof LeaseAnalyseOutput>(MERGEABLE_STRUCTURED_KEYS);
@@ -59,6 +60,10 @@ export function mergeStructuredLeaseFields(
   for (const key of keys) {
     if (key === "source_snippets") {
       next.source_snippets = { ...base.source_snippets, ...patch.source_snippets };
+      continue;
+    }
+    if (key === "field_extraction_meta") {
+      next.field_extraction_meta = { ...base.field_extraction_meta, ...patch.field_extraction_meta };
       continue;
     }
     (next as Record<string, unknown>)[key] = patch[key] as unknown;

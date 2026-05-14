@@ -134,6 +134,7 @@ export type Database = {
           field_provenance?: Json;
           change_history?: Json;
           document_conflicts?: Json;
+          field_extraction_meta?: Json;
         };
         Insert: {
           lease_id: string;
@@ -155,6 +156,7 @@ export type Database = {
           field_provenance?: Json;
           change_history?: Json;
           document_conflicts?: Json;
+          field_extraction_meta?: Json;
         };
         Update: {
           lease_id?: string;
@@ -176,6 +178,7 @@ export type Database = {
           field_provenance?: Json;
           change_history?: Json;
           document_conflicts?: Json;
+          field_extraction_meta?: Json;
         };
         Relationships: [];
       };
