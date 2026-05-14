@@ -80,15 +80,39 @@ function EmptyHint(props: Readonly<{ children: ReactNode }>) {
   );
 }
 
-type DateRowProps = Readonly<{ label: string; value: string | null }>;
+type CriticalDateRowProps = Readonly<{
+  label: string;
+  /** Display lines; empty shows an em dash. */
+  lines: string[];
+}>;
 
-function DateRow({ label, value }: DateRowProps) {
+function CriticalDateRow({ label, lines }: CriticalDateRowProps) {
+  const empty = lines.length === 0;
   return (
-    <div className="flex flex-col gap-0.5 border-b border-slate-100 py-3 last:border-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
-      <span className="text-sm tabular-nums text-slate-900 sm:text-right">{value ?? "—"}</span>
+    <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+      <span className="text-sm font-medium text-slate-700 sm:min-w-[10rem] sm:shrink-0 sm:pt-0.5">{label}</span>
+      <div className="min-w-0 flex-1 sm:text-right">
+        {empty ? (
+          <span className="text-sm tabular-nums text-slate-900">—</span>
+        ) : lines.length === 1 ? (
+          <span className="text-sm tabular-nums text-slate-900">{lines[0]}</span>
+        ) : (
+          <ul className="space-y-1 sm:ml-auto sm:inline-block sm:text-right">
+            {lines.map((line, idx) => (
+              <li key={`${line}-${idx}`} className="text-sm tabular-nums text-slate-900">
+                {line}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
+}
+
+function linesFromIsoDate(iso: string | null | undefined): string[] {
+  const formatted = formatIsoDate(iso);
+  return formatted ? [formatted] : [];
 }
 
 export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailViewProps) {
@@ -313,42 +337,30 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
             <EmptyHint>No extracted data yet. Complete text extraction first.</EmptyHint>
           ) : (
             <div>
-              <DateRow label="Commencement" value={formatIsoDate(extracted.commencement_date)} />
-              <DateRow label="Expiry" value={formatIsoDate(extracted.expiry_date)} />
-              <DateRow
+              <CriticalDateRow label="Commencement" lines={linesFromIsoDate(extracted.commencement_date)} />
+              <CriticalDateRow label="Expiry" lines={linesFromIsoDate(extracted.expiry_date)} />
+              <CriticalDateRow
                 label="Notice period"
-                value={
+                lines={
                   extracted.notice_period_days != null
-                    ? `${extracted.notice_period_days} day${extracted.notice_period_days === 1 ? "" : "s"}`
-                    : null
+                    ? [
+                        `${extracted.notice_period_days} day${extracted.notice_period_days === 1 ? "" : "s"}`,
+                      ]
+                    : []
                 }
               />
-              {breakDates.length ? (
-                <div className="py-3">
-                  <p className="text-sm font-medium text-slate-700">Break options</p>
-                  <ul className="mt-2 space-y-1.5">
-                    {breakDates.map((d) => (
-                      <li key={d} className="text-sm tabular-nums text-slate-900">
-                        {formatIsoDate(d)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <DateRow label="Break options" value={null} />
-              )}
-              {rentReviews.length ? (
-                <div className="border-t border-slate-100 py-3">
-                  <p className="text-sm font-medium text-slate-700">Rent reviews</p>
-                  <ul className="mt-2 space-y-1.5">
-                    {rentReviews.map((d) => (
-                      <li key={d} className="text-sm tabular-nums text-slate-900">
-                        {formatIsoDate(d)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
+              <CriticalDateRow
+                label="Break options"
+                lines={breakDates
+                  .map((d) => formatIsoDate(d))
+                  .filter((v): v is string => v != null && v !== "")}
+              />
+              <CriticalDateRow
+                label="Rent reviews"
+                lines={rentReviews
+                  .map((d) => formatIsoDate(d))
+                  .filter((v): v is string => v != null && v !== "")}
+              />
             </div>
           )}
         </SectionShell>
