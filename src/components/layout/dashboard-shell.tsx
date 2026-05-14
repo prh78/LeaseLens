@@ -1,3 +1,4 @@
+import { DashboardPortfolioFiltersProvider } from "@/components/dashboard/dashboard-portfolio-filters-context";
 import { DashboardTopNav } from "@/components/layout/dashboard-top-nav";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 
@@ -8,9 +9,10 @@ type DashboardShellProps = Readonly<{
 
 export function DashboardShell({ children, userEmail }: DashboardShellProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100/80">
-      <DashboardTopNav userEmail={userEmail} />
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+    <DashboardPortfolioFiltersProvider>
+      <div className="flex min-h-screen flex-col bg-slate-100/80">
+        <DashboardTopNav userEmail={userEmail} />
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <aside className="hidden w-56 shrink-0 border-r border-slate-200/80 bg-white lg:block">
           <div className="sticky top-14 flex max-h-[calc(100vh-3.5rem)] flex-col gap-4 overflow-y-auto p-4">
             <SidebarNav variant="sidebar" />
@@ -25,7 +27,8 @@ export function DashboardShell({ children, userEmail }: DashboardShellProps) {
         <main className="min-h-0 min-w-0 flex-1 overflow-auto">
           <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</div>
         </main>
+        </div>
       </div>
-    </div>
+    </DashboardPortfolioFiltersProvider>
   );
 }
