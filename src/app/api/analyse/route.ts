@@ -23,6 +23,8 @@ import { getPublicEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+/** Vercel / long-running: primary + supplemental can invoke OpenAI multiple times sequentially. */
+export const maxDuration = 300;
 
 const MAX_LEASE_TEXT_CHARS = 120_000;
 

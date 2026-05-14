@@ -6,8 +6,9 @@ type AnalyseGateRow = Pick<
 >;
 
 /**
- * True when PDF text exists but OpenAI structured `/api/analyse` has not completed successfully yet.
- * After a successful analyse, `ambiguous_language` and `manual_review_recommended` are always booleans.
+ * True when PDF text exists but OpenAI structured `/api/analyse` has not completed for the current
+ * extraction pass. After `/api/extract` saves new `raw_text`, it clears `ambiguous_language` and
+ * `manual_review_recommended` to null so this returns true until analyse runs again.
  */
 export function needsStructuredAnalyse(
   extractionStatus: Tables<"leases">["extraction_status"],

@@ -3,6 +3,29 @@ import { safeParseLeaseAnalyseJson, type LeaseAnalyseOutput } from "@/lib/lease/
 const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 400;
+const DEFAULT_OPENAI_TIMEOUT_MS = 180_000;
+
+function openAiRequestTimeoutMs(): number {
+  const raw = process.env.OPENAI_REQUEST_TIMEOUT_MS?.trim();
+  if (raw === undefined || raw === "") {
+    return DEFAULT_OPENAI_TIMEOUT_MS;
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    return DEFAULT_OPENAI_TIMEOUT_MS;
+  }
+  return Math.min(Math.max(Math.floor(n), 15_000), 600_000);
+}
+
+function isAbortError(e: unknown): boolean {
+  if (e instanceof Error && e.name === "AbortError") {
+    return true;
+  }
+  if (typeof DOMException !== "undefined" && e instanceof DOMException && e.name === "AbortError") {
+    return true;
+  }
+  return false;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -87,12 +110,16 @@ export async function analyseLeaseTextWithOpenAI(leaseText: string): Promise<Ope
   }
 
   const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_MODEL;
+  const timeoutMs = openAiRequestTimeoutMs();
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
+        signal: controller.signal,
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
@@ -135,10 +162,14 @@ export async function analyseLeaseTextWithOpenAI(leaseText: string): Promise<Ope
 
       return { data: checked.data, attemptsUsed: attempt };
     } catch (e) {
-      lastError = e;
+      lastError = isAbortError(e)
+        ? new Error(`OpenAI request timed out after ${timeoutMs}ms.`)
+        : e;
       if (attempt < MAX_ATTEMPTS) {
         await sleep(RETRY_DELAY_MS * attempt);
       }
+    } finally {
+      clearTimeout(tid);
     }
   }
 

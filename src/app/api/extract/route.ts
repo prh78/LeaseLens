@@ -281,6 +281,19 @@ export async function POST(request: Request) {
       throw new Error(insErr.message);
     }
 
+    /** Clear analyse gate so clients run `/api/analyse` again after raw text changes (e.g. supplemental PDF). */
+    const { error: gateErr } = await admin
+      .from("extracted_data")
+      .update({
+        ambiguous_language: null,
+        manual_review_recommended: null,
+      })
+      .eq("lease_id", leaseId);
+
+    if (gateErr) {
+      throw new Error(gateErr.message);
+    }
+
     const { error: doneErr } = await admin
       .from("leases")
       .update({ extraction_status: "analysing", extraction_error: null })
