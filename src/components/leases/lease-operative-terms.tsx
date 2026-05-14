@@ -21,7 +21,7 @@ const confidenceBadge: Record<
 > = {
   high: {
     label: "High confidence",
-    className: "bg-emerald-100 text-emerald-950 ring-1 ring-inset ring-emerald-200/90",
+    className: "bg-emerald-50 text-emerald-950 ring-1 ring-inset ring-emerald-200/90",
   },
   medium: {
     label: "Moderate confidence",
@@ -33,7 +33,7 @@ const confidenceBadge: Record<
   },
   unrated: {
     label: "Confidence n/a",
-    className: "bg-stone-100 text-stone-600 ring-1 ring-inset ring-stone-200/90",
+    className: "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200/90",
   },
 };
 
@@ -76,8 +76,8 @@ function formatValueForField(
 }
 function OperativeBlock(props: Readonly<{ title: string; children: ReactNode }>) {
   return (
-    <div className="border-b border-stone-200/80 pb-8 last:border-0 last:pb-0">
-      <h3 className="font-serif text-sm font-semibold tracking-wide text-stone-800">{props.title}</h3>
+    <div className="border-b border-slate-100 pb-8 last:border-0 last:pb-0">
+      <h3 className="text-sm font-semibold tracking-wide text-slate-800">{props.title}</h3>
       <div className="mt-5 space-y-4">{props.children}</div>
     </div>
   );
@@ -100,65 +100,65 @@ function OperativeEvidenceRow(props: Readonly<{
   const rationale = metaRow?.rationale?.trim();
 
   return (
-    <div className="overflow-hidden rounded-lg border border-stone-200/90 bg-gradient-to-b from-stone-50/40 to-white shadow-sm ring-1 ring-stone-900/[0.04]">
-      <div className="flex flex-col gap-3 border-b border-stone-100/90 px-4 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <div className="overflow-hidden rounded-lg border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1 space-y-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{props.label}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{props.label}</p>
           <div className="space-y-1">
             {props.multiline ? (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-900">{props.lines[0]}</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-900">{props.lines[0]}</p>
             ) : props.lines.length === 1 ? (
-              <p className="text-sm font-semibold tabular-nums text-stone-900">{props.lines[0]}</p>
+              <p className="text-sm font-semibold tabular-nums text-slate-900">{props.lines[0]}</p>
             ) : (
               <ul className="list-none space-y-1 p-0">
                 {props.lines.map((line) => (
-                  <li key={line} className="text-sm tabular-nums text-stone-900">
+                  <li key={line} className="text-sm tabular-nums text-slate-900">
                     {line}
                   </li>
                 ))}
               </ul>
             )}
-            {props.sourceLine ? <p className="text-xs leading-snug text-stone-600">{props.sourceLine}</p> : null}
+            {props.sourceLine ? <p className="text-xs leading-snug text-slate-600">{props.sourceLine}</p> : null}
           </div>
         </div>
         <ExtractionConfidencePill band={band} />
       </div>
 
-      <details className="group border-t border-stone-100 bg-stone-50/30">
-        <summary className="cursor-pointer list-none px-4 py-2.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-100/80 [&::-webkit-details-marker]:hidden">
+      <details className="group border-t border-slate-100 bg-slate-50/50">
+        <summary className="cursor-pointer list-none px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100/90 [&::-webkit-details-marker]:hidden">
           <span className="inline-flex w-full items-center justify-between gap-2">
-            <span className="uppercase tracking-wide text-stone-600">Extraction record</span>
-            <span className="text-stone-400 transition group-open:rotate-180" aria-hidden>
+            <span className="uppercase tracking-wide text-slate-600">Extraction record</span>
+            <span className="text-slate-400 transition group-open:rotate-180" aria-hidden>
               ▾
             </span>
           </span>
         </summary>
-        <div className="space-y-4 border-t border-stone-100/80 bg-white/60 px-4 py-4">
+        <div className="space-y-4 border-t border-slate-100 bg-white px-4 py-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Clause reference</p>
-            <p className="mt-1 font-serif text-sm leading-relaxed text-stone-900">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Clause reference</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-900">
               {clauseRef && clauseRef.length > 0 ? clauseRef : "—"}
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Source excerpt</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Source excerpt</p>
             {props.snippetText && props.snippetText.trim().length > 0 ? (
-              <blockquote className="mt-2 border-l-2 border-stone-300 bg-stone-50/80 py-2 pl-3 pr-2 font-serif text-sm italic leading-relaxed text-stone-800">
+              <blockquote className="mt-2 border-l-2 border-slate-300 bg-slate-50/90 py-2 pl-3 pr-2 font-serif text-sm italic leading-relaxed text-slate-800">
                 {props.snippetText}
               </blockquote>
             ) : (
-              <p className="mt-1 text-sm text-stone-500">No matched snippet stored for this field.</p>
+              <p className="mt-1 text-sm text-slate-500">No matched snippet stored for this field.</p>
             )}
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Extraction rationale</p>
-            <p className="mt-1 text-sm leading-relaxed text-stone-800">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Extraction rationale</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-800">
               {rationale && rationale.length > 0 ? rationale : "—"}
             </p>
           </div>
           {eff != null ? (
-            <p className="text-[10px] tabular-nums text-stone-500">
-              Model score for this field (0–1): <span className="font-semibold text-stone-700">{eff.toFixed(2)}</span>
+            <p className="text-[10px] tabular-nums text-slate-500">
+              Model score for this field (0–1): <span className="font-semibold text-slate-700">{eff.toFixed(2)}</span>
             </p>
           ) : null}
         </div>
@@ -214,7 +214,7 @@ export function LeaseOperativeTerms({ extracted, provenance }: LeaseOperativeTer
       title="Current operative terms"
       description="Structured fields with extraction confidence, instrument provenance, and expandable legal-review evidence (clause cite, source excerpt, rationale)."
     >
-      <div className="rounded-xl border border-stone-200/80 bg-stone-50/20 p-1 sm:p-2">
+      <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-1 sm:p-2">
         <OperativeBlock title="Critical dates">{criticalFields.map((f) => renderRow(f))}</OperativeBlock>
         <OperativeBlock title="Obligations">{obligationFields.map((f) => renderRow(f))}</OperativeBlock>
         <OperativeBlock title="Other provisions">{otherFields.map((f) => renderRow(f))}</OperativeBlock>

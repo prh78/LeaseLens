@@ -457,6 +457,7 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         leaseId={lease.id}
         initialPropertyName={lease.property_name}
         documents={documents}
+        extractionStatus={lease.extraction_status}
       />
     </div>
   );

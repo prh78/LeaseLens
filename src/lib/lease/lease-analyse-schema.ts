@@ -62,6 +62,50 @@ const fieldExtractionMetaEntrySchema = z
 
 export type FieldExtractionMetaEntryOutput = z.infer<typeof fieldExtractionMetaEntrySchema>;
 
+function firstNonEmptyString(...vals: readonly unknown[]): string | undefined {
+  for (const x of vals) {
+    if (typeof x !== "string") {
+      continue;
+    }
+    const t = x.trim();
+    if (t.length > 0) {
+      return t;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Maps common model aliases onto `clause_reference` / `rationale` before Zod parse
+ * (models often emit camelCase or alternate names).
+ */
+function normalizeFieldExtractionMetaEntryShape(v: Record<string, unknown>): Record<string, unknown> {
+  const clause = firstNonEmptyString(
+    v.clause_reference,
+    v.clauseReference,
+    v.clause,
+    v.clause_ref,
+    v.schedule_reference,
+    v.cite,
+  );
+  const rationale = firstNonEmptyString(
+    v.rationale,
+    v.reasoning,
+    v.notes,
+    v.explanation,
+    v.summary,
+    v.evidence,
+  );
+  const next: Record<string, unknown> = { ...v };
+  if (clause !== undefined) {
+    next.clause_reference = clause;
+  }
+  if (rationale !== undefined) {
+    next.rationale = rationale;
+  }
+  return next;
+}
+
 /**
  * Per-field explainability from the model (clause cite, rationale, local confidence).
  */
@@ -77,7 +121,8 @@ export function coerceFieldExtractionMetaInput(raw: unknown): Record<string, Fie
     if (v == null || typeof v !== "object" || Array.isArray(v)) {
       continue;
     }
-    const parsed = fieldExtractionMetaEntrySchema.safeParse(v);
+    const normalized = normalizeFieldExtractionMetaEntryShape(v as Record<string, unknown>);
+    const parsed = fieldExtractionMetaEntrySchema.safeParse(normalized);
     if (parsed.success) {
       out[k] = parsed.data;
     }

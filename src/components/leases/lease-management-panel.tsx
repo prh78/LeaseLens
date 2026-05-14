@@ -6,21 +6,29 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { LeaseDetailSection } from "@/components/leases/lease-detail-section";
 import { LEASE_DOCUMENT_TYPE_LABEL } from "@/lib/lease/lease-document-types";
+import { postLeaseAnalyse } from "@/lib/lease/post-lease-analyse";
 import { createClient } from "@/lib/supabase/client";
-import type { Tables } from "@/lib/supabase/database.types";
+import type { ExtractionStatus, Tables } from "@/lib/supabase/database.types";
 
 type LeaseManagementPanelProps = Readonly<{
   leaseId: string;
   initialPropertyName: string;
   documents: readonly Tables<"lease_documents">[];
+  extractionStatus: ExtractionStatus;
 }>;
 
-export function LeaseManagementPanel({ leaseId, initialPropertyName, documents }: LeaseManagementPanelProps) {
+export function LeaseManagementPanel({
+  leaseId,
+  initialPropertyName,
+  documents,
+  extractionStatus,
+}: LeaseManagementPanelProps) {
   const router = useRouter();
   const [panelOpen, setPanelOpen] = useState(false);
   const [name, setName] = useState(initialPropertyName);
   const [nameDirty, setNameDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [analyseBusy, setAnalyseBusy] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +40,11 @@ export function LeaseManagementPanel({ leaseId, initialPropertyName, documents }
   const orderedDocuments = useMemo(() => {
     return [...documents].sort((a, b) => new Date(a.upload_date).getTime() - new Date(b.upload_date).getTime());
   }, [documents]);
+
+  const canRerunStructuredAnalyse =
+    extractionStatus === "complete" ||
+    extractionStatus === "failed" ||
+    extractionStatus === "calculating_risks";
 
   const getAccessToken = useCallback(async () => {
     const supabase = createClient();
@@ -132,6 +145,28 @@ export function LeaseManagementPanel({ leaseId, initialPropertyName, documents }
     }
   };
 
+  const rerunStructuredAnalyse = async () => {
+    setError(null);
+    setAnalyseBusy(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        setError("You must be signed in.");
+        return;
+      }
+
+      const result = await postLeaseAnalyse(token, leaseId);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      router.refresh();
+    } finally {
+      setAnalyseBusy(false);
+    }
+  };
+
   const deleteEntireLease = async () => {
     if (
       !window.confirm(
@@ -213,13 +248,13 @@ export function LeaseManagementPanel({ leaseId, initialPropertyName, documents }
                   setName(e.target.value);
                   setNameDirty(true);
                 }}
-                disabled={busy}
+                disabled={busy || analyseBusy}
                 className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-900 disabled:bg-slate-50"
               />
               <div className="flex shrink-0 flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={busy || !nameDirty}
+                  disabled={busy || analyseBusy || !nameDirty}
                   onClick={() => {
                     void savePropertyName();
                   }}
@@ -229,7 +264,7 @@ export function LeaseManagementPanel({ leaseId, initialPropertyName, documents }
                 </button>
                 <button
                   type="button"
-                  disabled={busy || !nameDirty}
+                  disabled={busy || analyseBusy || !nameDirty}
                   onClick={() => {
                     setName(initialPropertyName);
                     setNameDirty(false);
@@ -271,7 +306,7 @@ export function LeaseManagementPanel({ leaseId, initialPropertyName, documents }
                     ) : (
                       <button
                         type="button"
-                        disabled={busy || deleting}
+                        disabled={busy || analyseBusy || deleting}
                         onClick={() => {
                           void deleteDocument(doc);
                         }}
@@ -290,14 +325,35 @@ export function LeaseManagementPanel({ leaseId, initialPropertyName, documents }
           </div>
 
           <div className="border-t border-slate-100 pt-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Structured analysis</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Re-run OpenAI on the lease text already in your workspace (same pipeline as after upload). Updates
+              structured fields, source snippets, and per-field extraction notes. This can take up to a few minutes.
+            </p>
+            <button
+              type="button"
+              disabled={busy || analyseBusy || !canRerunStructuredAnalyse}
+              onClick={() => {
+                void rerunStructuredAnalyse();
+              }}
+              className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {analyseBusy ? "Running analysis…" : "Re-run structured analysis"}
+            </button>
+            {!canRerunStructuredAnalyse ? (
+              <p className="mt-2 text-xs text-slate-500">
+                Available when the lease has finished processing (complete or failed) or is finishing risk calculation.
+                Wait if text is still being extracted.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="border-t border-slate-100 pt-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Danger zone</p>
             <div className="mt-3">
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => {
-                  void deleteEntireLease();
-                }}
+                disabled={busy || analyseBusy}
                 className="rounded-lg border border-red-300 bg-red-50/90 px-3 py-2 text-sm font-semibold text-red-950 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Delete entire lease

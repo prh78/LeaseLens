@@ -11,6 +11,20 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+function firstNonEmptyStringFromRecord(r: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const x = r[key];
+    if (typeof x !== "string") {
+      continue;
+    }
+    const t = x.trim();
+    if (t.length > 0) {
+      return t;
+    }
+  }
+  return undefined;
+}
+
 export function parseFieldExtractionMeta(raw: Json | null | undefined): Record<string, FieldExtractionMetaEntry> {
   if (raw == null || !isRecord(raw)) {
     return {};
@@ -20,19 +34,56 @@ export function parseFieldExtractionMeta(raw: Json | null | undefined): Record<s
     if (!isRecord(v)) {
       continue;
     }
+    const r = v as Record<string, unknown>;
     const confidence =
-      typeof v.confidence === "number" && Number.isFinite(v.confidence)
-        ? Math.min(1, Math.max(0, v.confidence))
-        : v.confidence === null
+      typeof r.confidence === "number" && Number.isFinite(r.confidence)
+        ? Math.min(1, Math.max(0, r.confidence))
+        : r.confidence === null
           ? null
           : undefined;
-    const rationale = typeof v.rationale === "string" ? v.rationale : v.rationale === null ? null : undefined;
+
+    const rationaleStr = firstNonEmptyStringFromRecord(r, [
+      "rationale",
+      "reasoning",
+      "notes",
+      "explanation",
+      "summary",
+      "evidence",
+    ]);
+    const rationale =
+      rationaleStr !== undefined
+        ? rationaleStr
+        : typeof r.rationale === "string"
+          ? r.rationale
+          : typeof r.reasoning === "string"
+            ? r.reasoning
+            : r.rationale === null
+              ? null
+              : r.reasoning === null
+                ? null
+                : undefined;
+
+    const clauseStr = firstNonEmptyStringFromRecord(r, [
+      "clause_reference",
+      "clauseReference",
+      "clause",
+      "clause_ref",
+      "schedule_reference",
+      "cite",
+    ]);
     const clause_reference =
-      typeof v.clause_reference === "string"
-        ? v.clause_reference
-        : v.clause_reference === null
-          ? null
-          : undefined;
+      clauseStr !== undefined
+        ? clauseStr
+        : typeof r.clause_reference === "string"
+          ? r.clause_reference
+          : typeof r.clauseReference === "string"
+            ? r.clauseReference
+            : r.clause_reference === null
+              ? null
+              : r.clauseReference === null
+                ? null
+                : undefined;
+
     if (confidence !== undefined || rationale !== undefined || clause_reference !== undefined) {
       out[field] = { confidence, rationale, clause_reference };
     }

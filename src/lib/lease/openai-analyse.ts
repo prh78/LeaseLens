@@ -60,7 +60,7 @@ Rules:
 - manual_review_recommended: true if confidence is low, dates conflict, or ambiguous_language is true; otherwise false (be conservative — prefer true when unsure).
 - confidence_score: number between 0 and 1 for overall extraction reliability, or null if not assessable.
 - source_snippets: object mapping logical field names (e.g. "commencement_date", "expiry_date") to short verbatim quotes from the lease as **strings only** (never arrays or numbers as values — if you need to cite several dates, join them in one string or use one quote). Use empty object {} only if no quotes are safe to attach.
-- field_extraction_meta: object keyed by structured field name. Each value may include optional "confidence" (0–1 for that field), "clause_reference" (e.g. "Schedule 2, para 4"), and "rationale" (brief reading note). Use {} if you provide no per-field notes.
+- field_extraction_meta: object keyed by structured field name (same snake_case keys as the main JSON, e.g. "commencement_date", "expiry_date", "break_dates"). For every key you include, prefer to set "clause_reference" (short cite: clause number, schedule, or paragraph) and "rationale" (one or two sentences on how you read the lease for that field) whenever the lease text gives enough to do so — use null only if truly absent. Each value may also include optional "confidence" (0–1 for that field). Use {} only if you have no per-field notes at all.
 
 Never invent facts. Prefer null and conservative flags over speculation.`;
 
@@ -84,6 +84,8 @@ function buildUserPrompt(leaseText: string): string {
   "source_snippets": { "<field_name>": "verbatim string quote from the lease text" },
   "field_extraction_meta": { "<field_name>": { "confidence": number | null, "clause_reference": string | null, "rationale": string | null } }
 }
+
+Include an entry for each structured field you extracted with non-null values where possible; for each entry, populate clause_reference and rationale from the lease text unless genuinely impossible (then null).
 
 Lease text follows between <<<LEASE>>> and <<<END>>>.
 
