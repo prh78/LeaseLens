@@ -45,6 +45,7 @@ export async function updateSession(request: NextRequest) {
   const isProtectedAppRoute =
     request.nextUrl.pathname.startsWith("/dashboard") ||
     request.nextUrl.pathname.startsWith("/upload") ||
+    request.nextUrl.pathname.startsWith("/export") ||
     request.nextUrl.pathname.startsWith("/lease");
 
   if (!user && isProtectedAppRoute) {

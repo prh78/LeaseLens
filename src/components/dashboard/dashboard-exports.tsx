@@ -1,5 +1,5 @@
 const linkClassName =
-  "inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/5 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
+  "flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-sm outline-none transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
 
 function DownloadGlyph() {
   return (
@@ -14,17 +14,19 @@ function DownloadGlyph() {
   );
 }
 
-/** Workspace CSV exports (session cookie auth). */
-export function DashboardExports() {
+/** Workspace CSV exports (session cookie auth), styled to match the upload form card. */
+export function WorkspaceExportsCard() {
   return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:p-5">
-      <h2 className="text-sm font-semibold text-slate-900">Exports</h2>
-      <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600">
-        Download a portfolio lease register or a consolidated critical-dates schedule as CSV. For operative terms,
-        risk flags, and the prioritised next action on a single lease, open the lease and use{" "}
-        <span className="font-medium text-slate-700">Export summary (PDF)</span> in the header.
-      </p>
-      <ul className="mt-4 flex flex-wrap gap-3">
+    <div className="mx-auto max-w-lg space-y-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
+      <div className="space-y-2">
+        <h2 className="text-sm font-medium text-slate-700">CSV downloads</h2>
+        <p className="text-xs leading-relaxed text-slate-500">
+          Download a portfolio lease register or a consolidated critical-dates schedule. Files use your current
+          session; stay signed in until each download finishes.
+        </p>
+      </div>
+
+      <ul className="space-y-3">
         <li>
           <a href="/api/export/portfolio-register" className={linkClassName} download>
             <DownloadGlyph />
@@ -38,6 +40,11 @@ export function DashboardExports() {
           </a>
         </li>
       </ul>
-    </section>
+
+      <p className="border-t border-slate-100 pt-4 text-xs leading-relaxed text-slate-500">
+        For operative terms, risk flags, and the prioritised next action on a single lease, open the lease and use{" "}
+        <span className="font-medium text-slate-700">Export summary (PDF)</span> in the header.
+      </p>
+    </div>
   );
 }

@@ -10,6 +10,8 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/upload/:path*",
+    "/export",
+    "/export/:path*",
     "/lease/:path*",
     "/api/analyse",
     "/api/extract",

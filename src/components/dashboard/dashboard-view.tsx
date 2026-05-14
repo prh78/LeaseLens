@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { DashboardLeasePortfolio } from "@/components/dashboard/dashboard-lease-portfolio";
 import { DashboardEmptyOnboarding } from "@/components/dashboard/dashboard-empty-onboarding";
-import { DashboardExports } from "@/components/dashboard/dashboard-exports";
 import { DashboardProcessingRefresh } from "@/components/dashboard/dashboard-processing-refresh";
 import { DashboardReviewQueue } from "@/components/dashboard/dashboard-review-queue";
 import { MetricStatCard } from "@/components/dashboard/metric-stat-card";
@@ -61,8 +60,6 @@ export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: D
           </section>
 
           <DashboardReviewQueue items={data.reviewQueue} />
-
-          <DashboardExports />
 
           <DashboardLeasePortfolio leases={leases} />
 
