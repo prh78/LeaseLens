@@ -11,7 +11,7 @@ import { RiskBadge } from "@/components/leases/risk-badge";
 import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { collectLeaseRiskFlags } from "@/lib/lease/lease-summary-risk-flags";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
-import { formatIsoDate, humanizeKey, jsonSnippetMap } from "@/lib/lease/lease-detail";
+import { humanizeKey, jsonSnippetMap } from "@/lib/lease/lease-detail";
 import { parseDateAmbiguities } from "@/lib/lease/field-extraction-meta";
 import {
   parseChangeHistory,
@@ -298,25 +298,11 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
                 <dt className="text-slate-500">Type</dt>
                 <dd className="mt-0.5 font-medium text-slate-900">{propertyTypeLabel(lease.property_type)}</dd>
               </div>
-              <div>
-                <dt className="text-slate-500">Term commencement</dt>
-                <dd className="mt-0.5 font-medium text-slate-900">
-                  {formatIsoDate(extracted?.term_commencement_date ?? null) ?? "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Rent commencement</dt>
-                <dd className="mt-0.5 font-medium text-slate-900">
-                  {formatIsoDate(extracted?.rent_commencement_date ?? null) ?? "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Term end</dt>
-                <dd className="mt-0.5 font-medium text-slate-900">
-                  {formatIsoDate(extracted?.expiry_date ?? null) ?? "—"}
-                </dd>
-              </div>
             </dl>
+            <p className="text-xs leading-relaxed text-slate-500">
+              Term, expiry, breaks, and rent dates with source clause excerpts are listed under{" "}
+              <span className="font-medium text-slate-700">Operative terms & extraction</span> below.
+            </p>
             {dateAmbiguities.length > 0 ? (
               <div
                 className="mt-4 rounded-lg border border-amber-200/90 bg-amber-50/80 px-3 py-2.5 text-xs leading-relaxed text-amber-950"
@@ -413,7 +399,7 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         <LeaseOperativeTerms extracted={extracted} provenance={provenance} />
       ) : (
         <LeaseDetailSection
-          title="Current operative terms"
+          title="Operative terms & extraction"
           description="Resolved portfolio view after applying supplemental overrides."
         >
           <LeaseDetailEmptyHint>No extracted data yet. Complete text extraction first.</LeaseDetailEmptyHint>

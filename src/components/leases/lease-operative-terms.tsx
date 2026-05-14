@@ -95,12 +95,17 @@ function OperativeEvidenceRow(props: Readonly<{
   allMeta: Record<string, FieldExtractionMetaEntry>;
   globalConfidence: number | null | undefined;
   dateFieldConfidence: DateFieldConfidenceMap;
+  /** When set, clause cite and lease excerpt render in the card body (not only inside details). */
+  showClauseEvidenceInline?: boolean;
 }>) {
+  const showInline = props.showClauseEvidenceInline === true;
   const eff = effectiveFieldConfidence(props.field, props.allMeta, props.globalConfidence, props.dateFieldConfidence);
   const band = confidenceBand(eff);
   const metaRow = props.allMeta[props.field];
   const clauseRef = metaRow?.clause_reference?.trim();
   const rationale = metaRow?.rationale?.trim();
+  const hasInlineClause = Boolean(clauseRef && clauseRef.length > 0);
+  const hasInlineSnippet = Boolean(props.snippetText && props.snippetText.trim().length > 0);
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5">
@@ -122,6 +127,29 @@ function OperativeEvidenceRow(props: Readonly<{
               </ul>
             )}
             {props.sourceLine ? <p className="text-xs leading-snug text-slate-600">{props.sourceLine}</p> : null}
+            {showInline && (hasInlineClause || hasInlineSnippet) ? (
+              <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                {hasInlineClause ? (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Source clause</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-900">{clauseRef}</p>
+                  </div>
+                ) : null}
+                {hasInlineSnippet ? (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Lease excerpt</p>
+                    <blockquote className="mt-1 border-l-2 border-slate-300 bg-slate-50/90 py-2 pl-3 pr-2 font-serif text-sm italic leading-relaxed text-slate-800">
+                      {props.snippetText}
+                    </blockquote>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {showInline && !hasInlineClause && !hasInlineSnippet ? (
+              <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                No source clause or lease excerpt stored for this field.
+              </p>
+            ) : null}
           </div>
         </div>
         <ExtractionConfidencePill band={band} />
@@ -130,29 +158,35 @@ function OperativeEvidenceRow(props: Readonly<{
       <details className="group border-t border-slate-100 bg-slate-50/50">
         <summary className="cursor-pointer list-none px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100/90 [&::-webkit-details-marker]:hidden">
           <span className="inline-flex w-full items-center justify-between gap-2">
-            <span className="uppercase tracking-wide text-slate-600">Extraction record</span>
+            <span className="uppercase tracking-wide text-slate-600">
+              {showInline ? "Rationale & model score" : "Extraction record"}
+            </span>
             <span className="text-slate-400 transition group-open:rotate-180" aria-hidden>
               ▾
             </span>
           </span>
         </summary>
         <div className="space-y-4 border-t border-slate-100 bg-white px-4 py-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Clause reference</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-900">
-              {clauseRef && clauseRef.length > 0 ? clauseRef : "—"}
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Source excerpt</p>
-            {props.snippetText && props.snippetText.trim().length > 0 ? (
-              <blockquote className="mt-2 border-l-2 border-slate-300 bg-slate-50/90 py-2 pl-3 pr-2 font-serif text-sm italic leading-relaxed text-slate-800">
-                {props.snippetText}
-              </blockquote>
-            ) : (
-              <p className="mt-1 text-sm text-slate-500">No matched snippet stored for this field.</p>
-            )}
-          </div>
+          {!showInline ? (
+            <>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Clause reference</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-900">
+                  {clauseRef && clauseRef.length > 0 ? clauseRef : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Source excerpt</p>
+                {props.snippetText && props.snippetText.trim().length > 0 ? (
+                  <blockquote className="mt-2 border-l-2 border-slate-300 bg-slate-50/90 py-2 pl-3 pr-2 font-serif text-sm italic leading-relaxed text-slate-800">
+                    {props.snippetText}
+                  </blockquote>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-500">No matched snippet stored for this field.</p>
+                )}
+              </div>
+            </>
+          ) : null}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Extraction rationale</p>
             <p className="mt-1 text-sm leading-relaxed text-slate-800">
@@ -180,14 +214,13 @@ export function LeaseOperativeTerms({ extracted, provenance }: LeaseOperativeTer
   const fieldMeta = parseFieldExtractionMeta(extracted.field_extraction_meta);
   const dateFieldConfidence = parseDateFieldConfidence(extracted.date_field_confidence);
 
-  const criticalFields = [
+  const leaseTermDateFields = [
     "term_commencement_date",
-    "rent_commencement_date",
     "expiry_date",
     "break_dates",
     "notice_period_days",
-    "rent_review_dates",
   ] as const;
+  const financialDateFields = ["rent_commencement_date", "rent_review_dates"] as const;
   const obligationFields = [
     "repairing_obligation",
     "reinstatement_required",
@@ -196,7 +229,7 @@ export function LeaseOperativeTerms({ extracted, provenance }: LeaseOperativeTer
   ] as const;
   const otherFields = ["conditional_break_clause"] as const;
 
-  const renderRow = (field: string) => {
+  const renderRow = (field: string, opts?: Readonly<{ showClauseEvidenceInline?: boolean }>) => {
     const { lines, isMultiline } = formatValueForField(field, extracted);
     const snippetText = snippetEvidenceForField(field, snippets);
     return (
@@ -211,17 +244,23 @@ export function LeaseOperativeTerms({ extracted, provenance }: LeaseOperativeTer
         allMeta={fieldMeta}
         globalConfidence={extracted.confidence_score}
         dateFieldConfidence={dateFieldConfidence}
+        showClauseEvidenceInline={opts?.showClauseEvidenceInline === true}
       />
     );
   };
 
   return (
     <LeaseDetailSection
-      title="Current operative terms"
-      description="Structured fields with extraction confidence, instrument provenance, and expandable legal-review evidence (clause cite, source excerpt, rationale)."
+      title="Operative terms & extraction"
+      description="Dates are grouped by lease term vs financial rent events. Each shows instrument provenance, source clause, and lease excerpt where the model stored them; expand for full extraction rationale."
     >
       <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-1 sm:p-2">
-        <OperativeBlock title="Critical dates">{criticalFields.map((f) => renderRow(f))}</OperativeBlock>
+        <OperativeBlock title="Lease term dates">
+          {leaseTermDateFields.map((f) => renderRow(f, { showClauseEvidenceInline: true }))}
+        </OperativeBlock>
+        <OperativeBlock title="Financial dates">
+          {financialDateFields.map((f) => renderRow(f, { showClauseEvidenceInline: true }))}
+        </OperativeBlock>
         <OperativeBlock title="Obligations">{obligationFields.map((f) => renderRow(f))}</OperativeBlock>
         <OperativeBlock title="Other provisions">{otherFields.map((f) => renderRow(f))}</OperativeBlock>
       </div>
