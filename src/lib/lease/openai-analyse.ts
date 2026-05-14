@@ -59,7 +59,7 @@ Rules:
 - ambiguous_language: true if you see hedging ("subject to", "TBC", conflicting clauses, illegible OCR-style noise), unclear antecedents, or materially ambiguous obligations; otherwise false.
 - manual_review_recommended: true if confidence is low, dates conflict, or ambiguous_language is true; otherwise false (be conservative — prefer true when unsure).
 - confidence_score: number between 0 and 1 for overall extraction reliability, or null if not assessable.
-- source_snippets: object mapping logical field names (e.g. "commencement_date", "expiry_date", "break_dates") to short verbatim quotes from the lease that support your answers. Use empty object {} only if no quotes are safe to attach.
+- source_snippets: object mapping logical field names (e.g. "commencement_date", "expiry_date") to short verbatim quotes from the lease as **strings only** (never arrays or numbers as values — if you need to cite several dates, join them in one string or use one quote). Use empty object {} only if no quotes are safe to attach.
 
 Never invent facts. Prefer null and conservative flags over speculation.`;
 
@@ -80,7 +80,7 @@ function buildUserPrompt(leaseText: string): string {
   "ambiguous_language": boolean,
   "manual_review_recommended": boolean,
   "confidence_score": number | null,
-  "source_snippets": object
+  "source_snippets": { "<field_name>": "verbatim string quote from the lease text" }
 }
 
 Lease text follows between <<<LEASE>>> and <<<END>>>.

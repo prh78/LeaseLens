@@ -7,6 +7,52 @@ const dateOrNull = z.union([z.string().regex(ISO_DATE, "Expected YYYY-MM-DD"), z
 const dateArray = z.array(z.string().regex(ISO_DATE, "Expected YYYY-MM-DD"));
 
 /**
+ * Models sometimes echo structured types under `source_snippets` (e.g. `rent_review_dates` as a date array).
+ * The app only stores string snippets; coerce everything to a single display string.
+ */
+export function coerceSourceSnippetsInput(raw: unknown): Record<string, string> {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k !== "string" || k.trim() === "") {
+      continue;
+    }
+    let text: string;
+    if (typeof v === "string") {
+      text = v;
+    } else if (Array.isArray(v)) {
+      text = v
+        .map((item) => {
+          if (typeof item === "string") {
+            return item;
+          }
+          if (item === null || item === undefined) {
+            return "";
+          }
+          return JSON.stringify(item);
+        })
+        .filter(Boolean)
+        .join("\n");
+    } else if (v === null || v === undefined) {
+      continue;
+    } else if (typeof v === "number" || typeof v === "boolean") {
+      text = String(v);
+    } else if (typeof v === "object") {
+      text = JSON.stringify(v);
+    } else {
+      text = String(v);
+    }
+    const trimmed = text.trim();
+    if (trimmed) {
+      out[k] = trimmed.length <= 20_000 ? trimmed : `${trimmed.slice(0, 20_000)}…`;
+    }
+  }
+  return out;
+}
+
+/**
  * Strict schema for OpenAI lease structured extraction.
  * All keys must be present in the model response (strict object).
  */
@@ -25,7 +71,7 @@ export const leaseAnalyseOutputSchema = z
     ambiguous_language: z.boolean(),
     manual_review_recommended: z.boolean(),
     confidence_score: z.union([z.number().min(0).max(1), z.null()]),
-    source_snippets: z.record(z.string(), z.string()),
+    source_snippets: z.preprocess(coerceSourceSnippetsInput, z.record(z.string(), z.string())),
   })
   .strict();
 
