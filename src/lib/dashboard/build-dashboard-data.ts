@@ -101,6 +101,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
       return {
         id: row.id,
         propertyName: row.property_name,
+        propertyType: row.property_type,
         termStatus,
         expiryDate,
         nextCriticalAction: "—",
@@ -123,6 +124,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
     return {
       id: row.id,
       propertyName: row.property_name,
+      propertyType: row.property_type,
       termStatus,
       expiryDate,
       nextCriticalAction: next ? LEASE_NEXT_ACTION_LABEL[next.action_type] : "—",

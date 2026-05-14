@@ -21,6 +21,7 @@ export async function fetchDashboardData(
       `
       id,
       property_name,
+      property_type,
       overall_risk,
       extraction_status,
       upload_date,

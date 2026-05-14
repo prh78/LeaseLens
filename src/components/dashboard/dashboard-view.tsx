@@ -1,10 +1,10 @@
 import Link from "next/link";
 
+import { DashboardLeasePortfolio } from "@/components/dashboard/dashboard-lease-portfolio";
 import { DashboardEmptyOnboarding } from "@/components/dashboard/dashboard-empty-onboarding";
 import { DashboardExports } from "@/components/dashboard/dashboard-exports";
 import { DashboardProcessingRefresh } from "@/components/dashboard/dashboard-processing-refresh";
 import { DashboardReviewQueue } from "@/components/dashboard/dashboard-review-queue";
-import { LeasePortfolioTable } from "@/components/dashboard/lease-portfolio-table";
 import { MetricStatCard } from "@/components/dashboard/metric-stat-card";
 import { DashboardLeasePipeline } from "@/components/leases/dashboard-lease-pipeline";
 import type { DashboardData } from "@/lib/dashboard/types";
@@ -64,7 +64,7 @@ export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: D
 
           <DashboardExports />
 
-          <LeasePortfolioTable leases={leases} />
+          <DashboardLeasePortfolio leases={leases} />
 
           <p className="text-center text-xs text-slate-400">
             Need another document?{" "}

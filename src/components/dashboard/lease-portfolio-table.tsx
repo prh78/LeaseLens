@@ -88,9 +88,12 @@ function ChevronIcon({ open }: Readonly<{ open: boolean }>) {
 
 type LeasePortfolioTableProps = Readonly<{
   leases: DashboardLeaseRow[];
+  /** When filters exclude every lease but the workspace is not empty. */
+  noMatchesFromFilters?: boolean;
+  onClearFilters?: () => void;
 }>;
 
-export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
+export function LeasePortfolioTable({ leases, noMatchesFromFilters, onClearFilters }: LeasePortfolioTableProps) {
   const router = useRouter();
   const [expandedLeaseId, setExpandedLeaseId] = useState<string | null>(null);
 
@@ -112,13 +115,31 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
       </div>
       {leases.length === 0 ? (
         <div className="px-5 py-16 text-center">
-          <p className="text-sm text-slate-600">Upload your first lease to begin analysing critical dates.</p>
-          <Link
-            href="/upload"
-            className="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-          >
-            Upload a lease
-          </Link>
+          {noMatchesFromFilters ? (
+            <>
+              <p className="text-sm font-medium text-slate-800">No leases match your filters.</p>
+              <p className="mt-2 text-sm text-slate-600">Try widening the search or clearing filters.</p>
+              {onClearFilters ? (
+                <button
+                  type="button"
+                  onClick={onClearFilters}
+                  className="mt-4 inline-flex rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+                >
+                  Clear filters
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600">Upload your first lease to begin analysing critical dates.</p>
+              <Link
+                href="/upload"
+                className="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              >
+                Upload a lease
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto">
