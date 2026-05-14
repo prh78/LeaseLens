@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { KeyboardEvent } from "react";
 
 import type { DashboardLeaseRow } from "@/lib/dashboard/types";
 import type { ExtractionStatus, LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
@@ -42,13 +46,15 @@ type LeasePortfolioTableProps = Readonly<{
 }>;
 
 export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
+  const router = useRouter();
+
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-5 py-4">
         <h2 className="text-base font-semibold text-slate-900">Lease portfolio</h2>
         <p className="mt-0.5 text-sm text-slate-500">
           Next action from structured data (break notice → rent review → expiry → manual review). Saved after
-          analysis completes.
+          analysis completes. Click any row to open the lease detail page.
         </p>
       </div>
       {leases.length === 0 ? (
@@ -81,15 +87,33 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                 const ex = extractionStyles[lease.extractionStatus];
                 const urg =
                   lease.urgencyLevel != null ? urgencyStyles[lease.urgencyLevel] : null;
+                const href = `/lease/${lease.id}`;
+
+                const go = () => {
+                  router.push(href);
+                };
+
+                const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    go();
+                  }
+                };
+
                 return (
-                  <tr key={lease.id} className="transition hover:bg-slate-50/60">
+                  <tr
+                    key={lease.id}
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`Open lease: ${lease.propertyName}`}
+                    className="cursor-pointer transition hover:bg-slate-50/60 focus-visible:bg-slate-50/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-slate-400"
+                    onClick={go}
+                    onKeyDown={onRowKeyDown}
+                  >
                     <td className="whitespace-nowrap px-5 py-3.5 font-medium text-slate-900">
-                      <Link
-                        href={`/lease/${lease.id}`}
-                        className="text-slate-900 underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
-                      >
+                      <span className="text-slate-900 underline decoration-slate-300 underline-offset-2">
                         {lease.propertyName}
-                      </Link>
+                      </span>
                     </td>
                     <td className="max-w-[220px] px-5 py-3.5 text-slate-600">{lease.nextCriticalAction}</td>
                     <td className="whitespace-nowrap px-5 py-3.5 tabular-nums text-slate-700">

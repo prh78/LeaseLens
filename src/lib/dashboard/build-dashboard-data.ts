@@ -1,10 +1,11 @@
 import {
   computeAllLeaseActionsInPriorityOrder,
-  computeLeaseNextAction,
   isLeaseCriticalActionDue,
   LEASE_NEXT_ACTION_LABEL,
   type LeaseNextActionResult,
 } from "@/lib/lease/compute-lease-next-action";
+import { effectiveLeaseNextAction, extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
+import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
 import type {
   DashboardAlertRow,
   DashboardData,
@@ -24,50 +25,6 @@ function normalizedExtracted(row: LeaseWithExtracted): Tables<"extracted_data"> 
     return null;
   }
   return Array.isArray(ed) ? ed[0] ?? null : ed;
-}
-
-function extractedSlim(row: LeaseWithExtracted) {
-  const extracted = normalizedExtracted(row);
-  if (!extracted) {
-    return null;
-  }
-  return {
-    expiry_date: extracted.expiry_date,
-    break_dates: extracted.break_dates,
-    notice_period_days: extracted.notice_period_days,
-    rent_review_dates: extracted.rent_review_dates,
-    ambiguous_language: extracted.ambiguous_language,
-    manual_review_recommended: extracted.manual_review_recommended,
-  };
-}
-
-function effectiveNextAction(row: LeaseWithExtracted): LeaseNextActionResult | null {
-  if (
-    row.extraction_status === "complete" &&
-    row.next_action_type != null &&
-    row.next_action_urgency != null
-  ) {
-    return {
-      action_type: row.next_action_type,
-      action_date: row.next_action_date,
-      days_remaining: row.next_action_days_remaining,
-      urgency_level: row.next_action_urgency,
-    };
-  }
-
-  const extracted = normalizedExtracted(row);
-  if (!extracted) {
-    return null;
-  }
-
-  return computeLeaseNextAction({
-    expiry_date: extracted.expiry_date,
-    break_dates: extracted.break_dates,
-    notice_period_days: extracted.notice_period_days,
-    rent_review_dates: extracted.rent_review_dates,
-    ambiguous_language: extracted.ambiguous_language,
-    manual_review_recommended: extracted.manual_review_recommended,
-  });
 }
 
 function urgencyRank(level: NonNullable<LeaseNextActionResult["urgency_level"]>): number {
@@ -93,31 +50,9 @@ function severityFromUrgency(level: LeaseNextActionResult["urgency_level"]): Das
   return "info";
 }
 
-function formatActionDueLabel(next: LeaseNextActionResult): string {
-  if (next.action_type === "manual_review") {
-    return "Review recommended";
-  }
-  if (next.days_remaining === null || !next.action_date) {
-    return "—";
-  }
-  if (next.days_remaining <= 0) {
-    return "Due now";
-  }
-  if (next.days_remaining === 1) {
-    return "In 1 day";
-  }
-  if (next.days_remaining < 14) {
-    return `In ${next.days_remaining} days`;
-  }
-  const d = new Date(`${next.action_date}T12:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) {
-    return next.action_date;
-  }
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
 function allActionResultsForRow(row: LeaseWithExtracted, nextFallback: LeaseNextActionResult): LeaseNextActionResult[] {
-  const slim = extractedSlim(row);
+  const extracted = normalizedExtracted(row);
+  const slim = extracted ? extractedRowToNextActionInput(extracted) : null;
   const fromExtracted = slim ? computeAllLeaseActionsInPriorityOrder(slim) : [];
   if (fromExtracted.length > 0) {
     return fromExtracted;
@@ -128,7 +63,7 @@ function allActionResultsForRow(row: LeaseWithExtracted, nextFallback: LeaseNext
 function resultToUpcomingItem(r: LeaseNextActionResult): DashboardUpcomingActionItem {
   return {
     label: LEASE_NEXT_ACTION_LABEL[r.action_type],
-    dueLabel: formatActionDueLabel(r),
+    dueLabel: formatNextActionDueLabel(r),
     severity: severityFromUrgency(r.urgency_level),
     actionDate: r.action_date,
     daysRemaining: r.days_remaining,
@@ -138,12 +73,14 @@ function resultToUpcomingItem(r: LeaseNextActionResult): DashboardUpcomingAction
 export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardData {
   const metrics: DashboardMetrics = {
     totalLeases: leaseRows.length,
-    criticalActionsDue: leaseRows.filter((row) => isLeaseCriticalActionDue(effectiveNextAction(row))).length,
+    criticalActionsDue: leaseRows.filter((row) =>
+      isLeaseCriticalActionDue(effectiveLeaseNextAction(row, normalizedExtracted(row))),
+    ).length,
     highRiskLeases: leaseRows.filter((row) => row.overall_risk === "high").length,
   };
 
   const leases: DashboardLeaseRow[] = leaseRows.map((row) => {
-    const next = effectiveNextAction(row);
+    const next = effectiveLeaseNextAction(row, normalizedExtracted(row));
     return {
       id: row.id,
       propertyName: row.property_name,
@@ -159,7 +96,8 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
 
   const actionAlerts: DashboardAlertRow[] = leaseRows
     .map((row) => {
-      const next = effectiveNextAction(row);
+      const extracted = normalizedExtracted(row);
+      const next = effectiveLeaseNextAction(row, extracted);
       if (!next) {
         return null;
       }
@@ -185,7 +123,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
       leaseId: row.id,
       propertyName: row.property_name,
       title: `${row.property_name} — ${LEASE_NEXT_ACTION_LABEL[primary.action_type]}`,
-      dueLabel: formatActionDueLabel(primary),
+      dueLabel: formatNextActionDueLabel(primary),
       severity: severityFromUrgency(primary.urgency_level),
       allActionsInPriorityOrder: allResults.map(resultToUpcomingItem),
     }));

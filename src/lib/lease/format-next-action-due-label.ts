@@ -1,0 +1,25 @@
+import type { LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
+
+/** Human-readable relative / absolute timing for a next-action row. */
+export function formatNextActionDueLabel(next: LeaseNextActionResult): string {
+  if (next.action_type === "manual_review") {
+    return "Review recommended";
+  }
+  if (next.days_remaining === null || !next.action_date) {
+    return "—";
+  }
+  if (next.days_remaining <= 0) {
+    return "Due now";
+  }
+  if (next.days_remaining === 1) {
+    return "In 1 day";
+  }
+  if (next.days_remaining < 14) {
+    return `In ${next.days_remaining} days`;
+  }
+  const d = new Date(`${next.action_date}T12:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) {
+    return next.action_date;
+  }
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}

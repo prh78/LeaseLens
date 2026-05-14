@@ -8,13 +8,26 @@ import {
   jsonSnippetMap,
   jsonStringArray,
 } from "@/lib/lease/lease-detail";
-import type { ExtractionStatus, OverallRisk, Tables } from "@/lib/supabase/database.types";
+import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
+import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
+import type { ExtractionStatus, LeaseNextActionUrgency, OverallRisk, Tables } from "@/lib/supabase/database.types";
 
 import { RiskBadge } from "@/components/leases/risk-badge";
+
+const nextActionUrgencyStyles: Record<
+  LeaseNextActionUrgency,
+  { label: string; className: string }
+> = {
+  low: { label: "Low", className: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200" },
+  medium: { label: "Medium", className: "bg-sky-50 text-sky-900 ring-1 ring-inset ring-sky-200/80" },
+  high: { label: "High", className: "bg-amber-50 text-amber-950 ring-1 ring-inset ring-amber-200/80" },
+  critical: { label: "Critical", className: "bg-red-50 text-red-950 ring-1 ring-inset ring-red-200/80" },
+};
 
 type LeaseDetailViewProps = Readonly<{
   lease: Tables<"leases">;
   extracted: Tables<"extracted_data"> | null;
+  nextAction: LeaseNextActionResult | null;
 }>;
 
 function propertyTypeLabel(value: string): string {
@@ -78,7 +91,7 @@ function DateRow({ label, value }: DateRowProps) {
   );
 }
 
-export function LeaseDetailView({ lease, extracted }: LeaseDetailViewProps) {
+export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailViewProps) {
   const risk = overallRiskDisplay(lease.overall_risk);
   const statusPill = extractionStatusPill(lease.extraction_status);
   const uploadLabel = new Date(lease.upload_date).toLocaleDateString(undefined, {
@@ -253,6 +266,42 @@ export function LeaseDetailView({ lease, extracted }: LeaseDetailViewProps) {
           </div>
         </div>
       </section>
+
+      <SectionShell
+        title="Next critical action"
+        description="Prioritised from break notices, rent reviews, lease expiry, then manual review when applicable."
+      >
+        {lease.extraction_status === "failed" ? (
+          <EmptyHint>
+            Next action is unavailable because processing did not complete. Fix the issue (see above) and re-run
+            upload or analysis from the dashboard.
+          </EmptyHint>
+        ) : lease.extraction_status !== "complete" ? (
+          <EmptyHint>
+            Next action is calculated after structured analysis finishes. This lease is still{" "}
+            <span className="font-medium text-slate-800">{extractionStatusPill(lease.extraction_status).label}</span>.
+          </EmptyHint>
+        ) : !nextAction ? (
+          <EmptyHint>No upcoming action could be derived from the extracted fields for this lease.</EmptyHint>
+        ) : (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-2">
+              <p className="text-lg font-semibold text-slate-900">{LEASE_NEXT_ACTION_LABEL[nextAction.action_type]}</p>
+              <p className="text-sm text-slate-600">{formatNextActionDueLabel(nextAction)}</p>
+              {nextAction.action_date ? (
+                <p className="text-xs font-mono tabular-nums text-slate-500">Date: {nextAction.action_date}</p>
+              ) : null}
+            </div>
+            <div className="shrink-0">
+              <span
+                className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${nextActionUrgencyStyles[nextAction.urgency_level].className}`}
+              >
+                Urgency: {nextActionUrgencyStyles[nextAction.urgency_level].label}
+              </span>
+            </div>
+          </div>
+        )}
+      </SectionShell>
 
       <div className="space-y-6">
         {/* Critical dates */}

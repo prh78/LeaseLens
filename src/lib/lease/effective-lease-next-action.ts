@@ -1,0 +1,45 @@
+import {
+  computeLeaseNextAction,
+  type ExtractedForNextAction,
+  type LeaseNextActionResult,
+} from "@/lib/lease/compute-lease-next-action";
+import type { Tables } from "@/lib/supabase/database.types";
+
+export function extractedRowToNextActionInput(row: Tables<"extracted_data">): ExtractedForNextAction {
+  return {
+    expiry_date: row.expiry_date,
+    break_dates: row.break_dates,
+    notice_period_days: row.notice_period_days,
+    rent_review_dates: row.rent_review_dates,
+    ambiguous_language: row.ambiguous_language,
+    manual_review_recommended: row.manual_review_recommended,
+  };
+}
+
+/**
+ * Next critical action: denormalised columns when the lease is complete, otherwise
+ * computed from `extracted_data` when present (matches dashboard behaviour).
+ */
+export function effectiveLeaseNextAction(
+  lease: Tables<"leases">,
+  extracted: Tables<"extracted_data"> | null,
+): LeaseNextActionResult | null {
+  if (
+    lease.extraction_status === "complete" &&
+    lease.next_action_type != null &&
+    lease.next_action_urgency != null
+  ) {
+    return {
+      action_type: lease.next_action_type,
+      action_date: lease.next_action_date,
+      days_remaining: lease.next_action_days_remaining,
+      urgency_level: lease.next_action_urgency,
+    };
+  }
+
+  if (extracted) {
+    return computeLeaseNextAction(extractedRowToNextActionInput(extracted));
+  }
+
+  return null;
+}
