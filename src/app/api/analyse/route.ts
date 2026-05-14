@@ -7,6 +7,7 @@ import { syncLeaseAlerts } from "@/lib/alerts/sync-lease-alerts";
 import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { finalizeLeaseAnalyseOutput, type LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
+import { applyLeaseDateValidationRules } from "@/lib/lease/lease-date-validations";
 import {
   buildInitialProvenance,
   mergeSupplementalWithAudit,
@@ -59,7 +60,8 @@ function isMissingExtractedAuditColumnError(message: string): boolean {
       (m.includes("change_history") ||
         m.includes("field_provenance") ||
         m.includes("document_conflicts") ||
-        m.includes("field_extraction_meta")))
+        m.includes("field_extraction_meta") ||
+        m.includes("date_validation_warnings")))
   );
 }
 
@@ -301,6 +303,8 @@ export async function POST(request: Request) {
   }
 
   mergedStructured = finalizeLeaseAnalyseOutput(mergedStructured);
+  const { data: afterDateRules, warnings: dateValidationWarnings } = applyLeaseDateValidationRules(mergedStructured);
+  mergedStructured = afterDateRules;
 
   const preservedRaw = extractedRow?.raw_text ?? (rawTextOverride ? rawTextOverride : null);
 
@@ -323,6 +327,7 @@ export async function POST(request: Request) {
     confidence_score: mergedStructured.confidence_score,
     date_field_confidence: mergedStructured.date_field_confidence as unknown as Json,
     date_ambiguities: mergedStructured.date_ambiguities as unknown as Json,
+    date_validation_warnings: dateValidationWarnings as unknown as Json,
     source_snippets: mergedStructured.source_snippets as unknown as Json,
     field_extraction_meta: mergedStructured.field_extraction_meta as unknown as Json,
   };
@@ -397,6 +402,7 @@ export async function POST(request: Request) {
     fieldExtractionMeta: fieldMeta,
     dateAmbiguities,
     dateFieldConfidence,
+    dateValidationWarnings,
   });
 
   const { error: leaseDoneErr } = await admin

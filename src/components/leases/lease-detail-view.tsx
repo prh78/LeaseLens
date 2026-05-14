@@ -13,6 +13,7 @@ import { collectLeaseRiskFlags } from "@/lib/lease/lease-summary-risk-flags";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
 import { humanizeKey, jsonSnippetMap } from "@/lib/lease/lease-detail";
 import { parseDateAmbiguities } from "@/lib/lease/field-extraction-meta";
+import { leaseDateValidationWarningsFromExtractedRow } from "@/lib/lease/lease-date-validations";
 import {
   parseChangeHistory,
   parseDocumentConflicts,
@@ -157,6 +158,7 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
       : null;
 
   const dateAmbiguities = extracted ? parseDateAmbiguities(extracted.date_ambiguities) : [];
+  const dateValidationWarnings = extracted ? leaseDateValidationWarningsFromExtractedRow(extracted) : [];
 
   return (
     <div className="space-y-8">
@@ -303,6 +305,23 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
               Term, expiry, breaks, and rent dates with source clause excerpts are listed under{" "}
               <span className="font-medium text-slate-700">Operative terms & extraction</span> below.
             </p>
+            {dateValidationWarnings.length > 0 ? (
+              <div
+                className="mt-4 rounded-lg border border-sky-200/90 bg-sky-50/80 px-3 py-2.5 text-xs leading-relaxed text-sky-950"
+                role="status"
+              >
+                <p className="font-semibold text-sky-950">Date validation</p>
+                <ul className="mt-1.5 list-disc space-y-1.5 pl-4">
+                  {dateValidationWarnings.map((w) => (
+                    <li key={w.code}>
+                      <span className="font-mono text-[11px] text-sky-900">{w.code}</span>
+                      <span className="text-sky-950"> — {w.message}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] text-sky-800/90">Verify against the underlying lease PDF before relying on these dates.</p>
+              </div>
+            ) : null}
             {dateAmbiguities.length > 0 ? (
               <div
                 className="mt-4 rounded-lg border border-amber-200/90 bg-amber-50/80 px-3 py-2.5 text-xs leading-relaxed text-amber-950"

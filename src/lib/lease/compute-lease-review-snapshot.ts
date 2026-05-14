@@ -1,5 +1,6 @@
 import type { DocumentConflictEntry } from "@/lib/lease/lease-detail-audit";
 import type { DateAmbiguityItem, DateFieldConfidenceMap, FieldExtractionMetaEntry } from "@/lib/lease/field-extraction-meta";
+import type { LeaseDateValidationWarning } from "@/lib/lease/lease-date-validations";
 import type { LeaseReviewPriority, LeaseReviewStatus } from "@/lib/supabase/database.types";
 
 export type LeaseReviewSnapshot = Readonly<{
@@ -50,6 +51,7 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
   fieldExtractionMeta: Record<string, FieldExtractionMetaEntry>;
   dateAmbiguities?: readonly DateAmbiguityItem[];
   dateFieldConfidence?: DateFieldConfidenceMap | null;
+  dateValidationWarnings?: readonly LeaseDateValidationWarning[];
 }>): LeaseReviewSnapshot {
   const conflictFields = input.documentConflicts.map((c) => c.field);
   const lowConfidenceFields = Object.entries(input.fieldExtractionMeta)
@@ -57,12 +59,14 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
     .map(([k]) => k);
   const dateAmb = input.dateAmbiguities ?? [];
   const lowDateKeys = lowConfidenceDateKeys(input.dateFieldConfidence ?? null);
+  const dateVal = input.dateValidationWarnings ?? [];
 
   const affected = uniqueStrings([
     ...conflictFields,
     ...lowConfidenceFields,
     ...lowDateKeys,
     ...(dateAmb.length > 0 ? ["date_ambiguities"] : []),
+    ...(dateVal.length > 0 ? ["date_validation_warnings"] : []),
     ...(input.ambiguousLanguage ? ["ambiguous_language"] : []),
     ...(input.manualReviewRecommended ? ["manual_review_recommended"] : []),
   ]);
@@ -79,6 +83,7 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
     lowConfidenceFields.length > 0 ||
     lowDateKeys.length > 0 ||
     dateAmb.length > 0 ||
+    dateVal.length > 0 ||
     globalLow;
 
   if (!needsReview) {
@@ -107,6 +112,11 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
       `Date classification uncertainty (${dateAmb.length} issue${dateAmb.length === 1 ? "" : "s"} recorded).`,
     );
   }
+  if (dateVal.length > 0) {
+    reasons.push(
+      `Lease date consistency checks (${dateVal.length} warning${dateVal.length === 1 ? "" : "s"}).`,
+    );
+  }
   if (lowConfidenceFields.length > 0) {
     reasons.push(`Low per-field confidence on: ${lowConfidenceFields.slice(0, 6).join(", ")}${lowConfidenceFields.length > 6 ? "…" : ""}.`);
   }
@@ -125,7 +135,8 @@ export function computeLeaseReviewSnapshot(input: Readonly<{
     input.ambiguousLanguage ||
     lowConfidenceFields.length > 0 ||
     lowDateKeys.length > 0 ||
-    dateAmb.length > 0
+    dateAmb.length > 0 ||
+    dateVal.length > 0
   ) {
     priority = "medium";
   }

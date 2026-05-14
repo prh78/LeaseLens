@@ -145,6 +145,7 @@ export type Database = {
           confidence_score: number | null;
           date_field_confidence: Json | null;
           date_ambiguities: Json;
+          date_validation_warnings: Json;
           source_snippets: Json;
           raw_text: string | null;
           conditional_break_clause: string | null;
@@ -170,6 +171,7 @@ export type Database = {
           confidence_score?: number | null;
           date_field_confidence?: Json | null;
           date_ambiguities?: Json;
+          date_validation_warnings?: Json;
           source_snippets?: Json;
           raw_text?: string | null;
           conditional_break_clause?: string | null;
@@ -195,6 +197,7 @@ export type Database = {
           confidence_score?: number | null;
           date_field_confidence?: Json | null;
           date_ambiguities?: Json;
+          date_validation_warnings?: Json;
           source_snippets?: Json;
           raw_text?: string | null;
           conditional_break_clause?: string | null;
