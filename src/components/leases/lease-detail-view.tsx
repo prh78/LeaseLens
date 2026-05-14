@@ -8,7 +8,7 @@ import { LeaseManagementPanel } from "@/components/leases/lease-management-panel
 import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
 import { LeaseReviewActions } from "@/components/leases/lease-review-actions";
 import { RiskBadge } from "@/components/leases/risk-badge";
-import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
+import { nextActionDisplayLabel, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { collectLeaseRiskFlags } from "@/lib/lease/lease-summary-risk-flags";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
 import { humanizeKey, jsonSnippetMap } from "@/lib/lease/lease-detail";
@@ -371,7 +371,7 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 space-y-2">
                 <p className="text-lg font-semibold text-slate-900">
-                  {LEASE_NEXT_ACTION_LABEL[nextAction.action_type]}
+                  {nextActionDisplayLabel(nextAction)}
                 </p>
                 <p className="text-sm text-slate-600">{formatNextActionDueLabel(nextAction)}</p>
                 {nextAction.action_date ? (

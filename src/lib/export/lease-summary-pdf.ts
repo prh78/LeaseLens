@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
-import { LEASE_NEXT_ACTION_LABEL, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
+import { nextActionDisplayLabel, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { confidenceBand, effectiveFieldConfidence, parseFieldExtractionMeta, parseDateFieldConfidence } from "@/lib/lease/field-extraction-meta";
 import {
   OPERATIVE_TERMS_CRITICAL_FIELDS,
@@ -237,7 +237,7 @@ export async function buildLeaseSummaryPdfBytes(input: Readonly<{
 
   w.heading("Next critical action");
   if (nextAction) {
-    w.keyValue("Action", LEASE_NEXT_ACTION_LABEL[nextAction.action_type]);
+    w.keyValue("Action", nextActionDisplayLabel(nextAction));
     w.keyValue("Due", formatNextActionDueLabel(nextAction));
     w.keyValue("Action date", nextAction.action_date ?? "—");
     w.keyValue("Urgency", nextAction.urgency_level);

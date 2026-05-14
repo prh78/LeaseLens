@@ -3,10 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ALERT_HORIZONS_DAYS, type AlertEventKind } from "@/lib/alerts/constants";
 import { parseIsoDateUtc, startOfTodayUtc, triggerAtForHorizon, utcDateOnlyString } from "@/lib/alerts/date-helpers";
 import {
-  isBreakClauseActionable,
+  isBreakClauseAlertEligible,
   parseBreakClauseStatusMap,
   statusForBreakDate,
 } from "@/lib/lease/break-clause-status";
+import { breakNoticeDeadlineIso } from "@/lib/lease/compute-lease-next-action";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 type Admin = SupabaseClient<Database>;
@@ -35,6 +36,7 @@ function collectEventDates(extracted: {
   expiry_date: string | null;
   break_dates: Json;
   break_clause_status?: Json | null;
+  notice_period_days: number | null;
   rent_review_dates: Json;
 }): { kind: AlertEventKind; iso: string }[] {
   const out: { kind: AlertEventKind; iso: string }[] = [];
@@ -54,10 +56,11 @@ function collectEventDates(extracted: {
     push("expiry", extracted.expiry_date);
   }
   for (const iso of jsonStringArray(extracted.break_dates)) {
-    if (!isBreakClauseActionable(statusForBreakDate(iso, breakStatusMap))) {
+    if (!isBreakClauseAlertEligible(statusForBreakDate(iso, breakStatusMap))) {
       continue;
     }
-    push("break", iso);
+    const alertIso = breakNoticeDeadlineIso(iso, extracted.notice_period_days) ?? iso;
+    push("break", alertIso);
   }
   for (const iso of jsonStringArray(extracted.rent_review_dates)) {
     push("rent_review", iso);

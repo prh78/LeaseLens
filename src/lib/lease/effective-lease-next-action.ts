@@ -25,6 +25,10 @@ export function effectiveLeaseNextAction(
   lease: Tables<"leases">,
   extracted: Tables<"extracted_data"> | null,
 ): LeaseNextActionResult | null {
+  if (extracted) {
+    return computeLeaseNextAction(extractedRowToNextActionInput(extracted));
+  }
+
   if (
     lease.extraction_status === "complete" &&
     lease.next_action_type != null &&
@@ -36,10 +40,6 @@ export function effectiveLeaseNextAction(
       days_remaining: lease.next_action_days_remaining,
       urgency_level: lease.next_action_urgency,
     };
-  }
-
-  if (extracted) {
-    return computeLeaseNextAction(extractedRowToNextActionInput(extracted));
   }
 
   return null;

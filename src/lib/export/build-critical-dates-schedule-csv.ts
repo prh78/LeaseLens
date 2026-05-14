@@ -3,7 +3,7 @@ import type { LeaseWithExtractedForExport } from "@/lib/export/fetch-leases-for-
 import {
   calendarDaysRemaining,
   computeAllLeaseActionsInPriorityOrder,
-  LEASE_NEXT_ACTION_LABEL,
+  nextActionDisplayLabel,
   urgencyFromDays,
 } from "@/lib/lease/compute-lease-next-action";
 import { extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
@@ -91,7 +91,7 @@ export function buildCriticalDatesScheduleCsv(leaseRows: LeaseWithExtractedForEx
           leaseId: leaseRow.id,
           propertyName: leaseRow.property_name,
           termStatus: term,
-          eventType: LEASE_NEXT_ACTION_LABEL[a.action_type],
+          eventType: nextActionDisplayLabel(a),
           eventDate: a.action_date ?? "",
           daysRemaining: a.days_remaining === null ? "" : String(a.days_remaining),
           urgency: a.urgency_level,

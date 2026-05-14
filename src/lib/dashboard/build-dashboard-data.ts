@@ -1,7 +1,7 @@
 import {
   computeAllLeaseActionsInPriorityOrder,
   isLeaseCriticalActionDue,
-  LEASE_NEXT_ACTION_LABEL,
+  nextActionDisplayLabel,
   type LeaseNextActionResult,
 } from "@/lib/lease/compute-lease-next-action";
 import { effectiveLeaseNextAction, extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
@@ -67,7 +67,7 @@ function allActionResultsForRow(row: LeaseWithExtracted, nextFallback: LeaseNext
 
 function resultToUpcomingItem(r: LeaseNextActionResult): DashboardUpcomingActionItem {
   return {
-    label: LEASE_NEXT_ACTION_LABEL[r.action_type],
+    label: nextActionDisplayLabel(r),
     dueLabel: formatNextActionDueLabel(r),
     severity: severityFromUrgency(r.urgency_level),
     actionDate: r.action_date,
@@ -127,7 +127,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
       propertyType: row.property_type,
       termStatus,
       expiryDate,
-      nextCriticalAction: next ? LEASE_NEXT_ACTION_LABEL[next.action_type] : "—",
+      nextCriticalAction: next ? nextActionDisplayLabel(next) : "—",
       actionType: next?.action_type ?? null,
       actionDate: next?.action_date ?? null,
       daysRemaining: next?.days_remaining ?? null,

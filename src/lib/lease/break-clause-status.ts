@@ -67,12 +67,22 @@ export function syncBreakClauseStatusWithBreakDates(
   return out;
 }
 
-/** Whether this break should drive portfolio next-action / break alerts. */
+/** Excluded from next-action lists and scheduled break alerts (archived or declined). */
+export function isBreakClauseSuppressed(status: BreakClauseStatus | undefined): boolean {
+  return status === "do_not_exercise" || status === "expired";
+}
+
+/** Only committed exercise drives scheduled break alerts (notice-deadline horizons). */
+export function isBreakClauseAlertEligible(status: BreakClauseStatus | undefined): boolean {
+  return status === "intend_to_exercise";
+}
+
+/**
+ * @deprecated Prefer {@link isBreakClauseSuppressed} / {@link isBreakClauseAlertEligible} for explicit rules.
+ * Legacy: breaks that were not fully suppressed from tier-1 date lists.
+ */
 export function isBreakClauseActionable(status: BreakClauseStatus | undefined): boolean {
-  if (status == null) {
-    return true;
-  }
-  return status !== "do_not_exercise" && status !== "expired";
+  return !isBreakClauseSuppressed(status);
 }
 
 export function statusForBreakDate(
