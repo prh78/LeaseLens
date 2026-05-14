@@ -89,15 +89,15 @@ type CriticalDateRowProps = Readonly<{
 function CriticalDateRow({ label, lines }: CriticalDateRowProps) {
   const empty = lines.length === 0;
   return (
-    <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-      <span className="text-sm font-medium text-slate-700 sm:min-w-[10rem] sm:shrink-0 sm:pt-0.5">{label}</span>
-      <div className="min-w-0 flex-1 sm:text-right">
+    <div className="border-b border-slate-100 py-4 last:border-0">
+      <p className="text-sm font-medium text-slate-700">{label}</p>
+      <div className="mt-1.5">
         {empty ? (
           <span className="text-sm tabular-nums text-slate-900">—</span>
         ) : lines.length === 1 ? (
           <span className="text-sm tabular-nums text-slate-900">{lines[0]}</span>
         ) : (
-          <ul className="space-y-1 sm:ml-auto sm:inline-block sm:text-right">
+          <ul className="list-none space-y-1 p-0">
             {lines.map((line, idx) => (
               <li key={`${line}-${idx}`} className="text-sm tabular-nums text-slate-900">
                 {line}
