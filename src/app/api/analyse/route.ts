@@ -220,14 +220,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: upsertError.message, leaseId }, { status: 500 });
   }
 
-  const { error: leaseDoneErr } = await admin
+  const { error: risksPhaseErr } = await admin
     .from("leases")
-    .update({ extraction_status: "complete", extraction_error: null })
+    .update({ extraction_status: "calculating_risks", extraction_error: null })
     .eq("id", leaseId)
     .eq("user_id", user.id);
 
-  if (leaseDoneErr) {
-    return NextResponse.json({ error: leaseDoneErr.message, leaseId }, { status: 500 });
+  if (risksPhaseErr) {
+    return NextResponse.json({ error: risksPhaseErr.message, leaseId }, { status: 500 });
   }
 
   try {
@@ -240,6 +240,16 @@ export async function POST(request: Request) {
     await syncLeaseNextAction(admin, leaseId);
   } catch (syncCause) {
     console.error("syncLeaseNextAction failed:", syncCause);
+  }
+
+  const { error: leaseDoneErr } = await admin
+    .from("leases")
+    .update({ extraction_status: "complete", extraction_error: null })
+    .eq("id", leaseId)
+    .eq("user_id", user.id);
+
+  if (leaseDoneErr) {
+    return NextResponse.json({ error: leaseDoneErr.message, leaseId }, { status: 500 });
   }
 
   return NextResponse.json({

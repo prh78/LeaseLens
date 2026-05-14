@@ -135,7 +135,9 @@ export async function POST(request: Request) {
   }
 
   const cacheableAfterText =
-    lease.extraction_status === "complete" || lease.extraction_status === "analysing";
+    lease.extraction_status === "complete" ||
+    lease.extraction_status === "analysing" ||
+    lease.extraction_status === "calculating_risks";
 
   if (!force && cacheableAfterText) {
     const { data: existingRow, error: existingErr } = await admin

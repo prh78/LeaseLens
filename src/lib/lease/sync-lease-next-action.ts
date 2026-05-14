@@ -23,7 +23,7 @@ export async function syncLeaseNextAction(admin: Admin, leaseId: string): Promis
     .eq("id", leaseId)
     .maybeSingle();
 
-  if (leaseErr || !lease || lease.extraction_status !== "complete") {
+  if (leaseErr || !lease || (lease.extraction_status !== "complete" && lease.extraction_status !== "calculating_risks")) {
     await admin.from("leases").update(nullAction).eq("id", leaseId);
     return;
   }

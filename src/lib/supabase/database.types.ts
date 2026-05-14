@@ -1,6 +1,12 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type ExtractionStatus = "uploading" | "extracting" | "analysing" | "complete" | "failed";
+export type ExtractionStatus =
+  | "uploading"
+  | "extracting"
+  | "analysing"
+  | "calculating_risks"
+  | "complete"
+  | "failed";
 export type OverallRisk = "low" | "medium" | "high" | "critical";
 export type LeaseNextActionType = "break_notice_deadline" | "rent_review" | "lease_expiry" | "manual_review";
 export type LeaseNextActionUrgency = "low" | "medium" | "high" | "critical";

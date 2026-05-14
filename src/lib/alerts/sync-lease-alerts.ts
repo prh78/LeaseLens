@@ -67,7 +67,7 @@ export async function syncLeaseAlerts(admin: Admin, leaseId: string): Promise<{ 
     .eq("id", leaseId)
     .maybeSingle();
 
-  if (leaseErr || !lease || lease.extraction_status !== "complete") {
+  if (leaseErr || !lease || (lease.extraction_status !== "complete" && lease.extraction_status !== "calculating_risks")) {
     await admin.from("alerts").delete().eq("lease_id", leaseId).in("sent_status", ["pending", "skipped"]);
     return { inserted: 0 };
   }

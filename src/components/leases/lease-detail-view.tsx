@@ -53,6 +53,10 @@ function extractionStatusPill(status: ExtractionStatus): { label: string; classN
     uploading: { label: "Uploading", className: "bg-slate-100 text-slate-800 border-slate-200" },
     extracting: { label: "Extracting", className: "bg-sky-50 text-sky-900 border-sky-200" },
     analysing: { label: "Analysing", className: "bg-violet-50 text-violet-900 border-violet-200" },
+    calculating_risks: {
+      label: "Calculating risks",
+      className: "bg-amber-50 text-amber-950 border-amber-200",
+    },
     complete: { label: "Complete", className: "bg-emerald-50 text-emerald-900 border-emerald-200" },
     failed: { label: "Failed", className: "bg-red-50 text-red-900 border-red-200" },
   };
@@ -227,6 +231,15 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
               </Link>{" "}
               — processing continues in the background.
             </p>
+          ) : lease.extraction_status === "calculating_risks" ? (
+            <p>
+              Structured data is saved. Calculating portfolio risks, alerts, and next actions — usually only a
+              moment. You can return to the{" "}
+              <Link href="/dashboard" className="font-semibold underline underline-offset-2">
+                dashboard
+              </Link>
+              .
+            </p>
           ) : (
             <p>
               Running structured AI analysis on the lease text. You can return to the{" "}
@@ -300,30 +313,55 @@ export function LeaseDetailView({ lease, extracted, nextAction }: LeaseDetailVie
             Next action is unavailable because processing did not complete. Fix the issue (see above) and re-run
             upload or analysis from the dashboard.
           </EmptyHint>
-        ) : lease.extraction_status !== "complete" ? (
-          <EmptyHint>
-            Next action is calculated after structured analysis finishes. This lease is still{" "}
-            <span className="font-medium text-slate-800">{extractionStatusPill(lease.extraction_status).label}</span>.
-          </EmptyHint>
-        ) : !nextAction ? (
-          <EmptyHint>No upcoming action could be derived from the extracted fields for this lease.</EmptyHint>
-        ) : (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 space-y-2">
-              <p className="text-lg font-semibold text-slate-900">{LEASE_NEXT_ACTION_LABEL[nextAction.action_type]}</p>
-              <p className="text-sm text-slate-600">{formatNextActionDueLabel(nextAction)}</p>
-              {nextAction.action_date ? (
-                <p className="text-xs font-mono tabular-nums text-slate-500">Date: {nextAction.action_date}</p>
-              ) : null}
-            </div>
-            <div className="shrink-0">
-              <span
-                className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${nextActionUrgencyStyles[nextAction.urgency_level].className}`}
-              >
-                Urgency: {nextActionUrgencyStyles[nextAction.urgency_level].label}
-              </span>
+        ) : nextAction &&
+          (lease.extraction_status === "complete" || lease.extraction_status === "calculating_risks") ? (
+          <div className="space-y-3">
+            {lease.extraction_status === "calculating_risks" ? (
+              <p className="text-xs text-slate-500">
+                Finalising alerts and dashboard fields — this page will update when processing completes.
+              </p>
+            ) : null}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-2">
+                <p className="text-lg font-semibold text-slate-900">
+                  {LEASE_NEXT_ACTION_LABEL[nextAction.action_type]}
+                </p>
+                <p className="text-sm text-slate-600">{formatNextActionDueLabel(nextAction)}</p>
+                {nextAction.action_date ? (
+                  <p className="text-xs font-mono tabular-nums text-slate-500">Date: {nextAction.action_date}</p>
+                ) : null}
+              </div>
+              <div className="shrink-0">
+                <span
+                  className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${nextActionUrgencyStyles[nextAction.urgency_level].className}`}
+                >
+                  Urgency: {nextActionUrgencyStyles[nextAction.urgency_level].label}
+                </span>
+              </div>
             </div>
           </div>
+        ) : lease.extraction_status === "complete" ? (
+          <EmptyHint>No upcoming action could be derived from the extracted fields for this lease.</EmptyHint>
+        ) : (
+          <EmptyHint>
+            {lease.extraction_status === "calculating_risks" ? (
+              <>
+                Next action and alerts are being finalised. This lease is{" "}
+                <span className="font-medium text-slate-800">
+                  {extractionStatusPill(lease.extraction_status).label}
+                </span>
+                .
+              </>
+            ) : (
+              <>
+                Next action is calculated after structured analysis finishes. This lease is still{" "}
+                <span className="font-medium text-slate-800">
+                  {extractionStatusPill(lease.extraction_status).label}
+                </span>
+                .
+              </>
+            )}
+          </EmptyHint>
         )}
       </SectionShell>
 

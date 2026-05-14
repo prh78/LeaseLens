@@ -1,5 +1,6 @@
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { fetchDashboardData } from "@/lib/dashboard/fetch-dashboard-data";
+import { isExtractionProcessing } from "@/lib/lease/extraction-pipeline";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -20,5 +21,9 @@ export default async function DashboardPage() {
     .filter((l) => l.extractionStatus === "uploading" || l.extractionStatus === "extracting" || l.extractionStatus === "analysing")
     .map((l) => l.id);
 
-  return <DashboardView data={data} pipelineLeaseIds={pipelineLeaseIds} />;
+  const hasProcessingLeases = data.leases.some((l) => isExtractionProcessing(l.extractionStatus));
+
+  return (
+    <DashboardView data={data} pipelineLeaseIds={pipelineLeaseIds} hasProcessingLeases={hasProcessingLeases} />
+  );
 }

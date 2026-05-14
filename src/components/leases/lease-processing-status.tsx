@@ -57,7 +57,12 @@ export function LeaseProcessingStatus() {
     setLoadError(null);
     setLease(data);
 
-    if ((data.extraction_status === "analysing" || data.extraction_status === "complete") && leaseId) {
+    if (
+      (data.extraction_status === "analysing" ||
+        data.extraction_status === "complete" ||
+        data.extraction_status === "calculating_risks") &&
+      leaseId
+    ) {
       const { data: ed } = await supabase
         .from("extracted_data")
         .select("raw_text, ambiguous_language, manual_review_recommended")
@@ -216,6 +221,7 @@ export function LeaseProcessingStatus() {
     uploading: "Lease record created — attach the PDF from upload if you have not finished.",
     extracting: "Reading your PDF and extracting text…",
     analysing: "Structured AI analysis running for dates and clauses…",
+    calculating_risks: "Saving structured data and calculating portfolio alerts and next actions…",
     complete: needsStructured
       ? "Text ready — finishing structured extraction…"
       : analysePhase === "running"
@@ -235,7 +241,8 @@ export function LeaseProcessingStatus() {
 
       {lease.extraction_status === "uploading" ||
       lease.extraction_status === "extracting" ||
-      lease.extraction_status === "analysing" ? (
+      lease.extraction_status === "analysing" ||
+      lease.extraction_status === "calculating_risks" ? (
         <div className="flex items-center gap-3 text-sm text-slate-500">
           <span
             className="inline-block size-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900"

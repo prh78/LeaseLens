@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DashboardProcessingRefresh } from "@/components/dashboard/dashboard-processing-refresh";
 import { LeasePortfolioTable } from "@/components/dashboard/lease-portfolio-table";
 import { MetricStatCard } from "@/components/dashboard/metric-stat-card";
 import { UpcomingAlertsPanel } from "@/components/dashboard/upcoming-alerts-panel";
@@ -9,13 +10,15 @@ import type { DashboardData } from "@/lib/dashboard/types";
 type DashboardViewProps = Readonly<{
   data: DashboardData;
   pipelineLeaseIds: string[];
+  hasProcessingLeases: boolean;
 }>;
 
-export function DashboardView({ data, pipelineLeaseIds }: DashboardViewProps) {
+export function DashboardView({ data, pipelineLeaseIds, hasProcessingLeases }: DashboardViewProps) {
   const { metrics, leases, alerts } = data;
 
   return (
     <div className="space-y-8">
+      <DashboardProcessingRefresh enabled={hasProcessingLeases} />
       <DashboardLeasePipeline pipelineLeaseIds={pipelineLeaseIds} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>

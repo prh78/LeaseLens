@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { KeyboardEvent } from "react";
 
+import { LeaseExtractionProgress } from "@/components/dashboard/lease-extraction-progress";
 import type { DashboardLeaseRow } from "@/lib/dashboard/types";
-import type { ExtractionStatus, LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
+import type { LeaseNextActionUrgency, OverallRisk } from "@/lib/supabase/database.types";
 
 const riskStyles: Record<
   OverallRisk,
@@ -33,14 +34,6 @@ const urgencyStyles: Record<
   critical: { label: "Critical", className: "bg-red-50 text-red-950 ring-1 ring-inset ring-red-200/80" },
 };
 
-const extractionStyles: Record<ExtractionStatus, { label: string; className: string }> = {
-  uploading: { label: "Uploading", className: "text-slate-600" },
-  extracting: { label: "Extracting", className: "text-sky-700" },
-  analysing: { label: "Analysing", className: "text-violet-700" },
-  complete: { label: "Ready", className: "text-emerald-700" },
-  failed: { label: "Failed", className: "text-red-700" },
-};
-
 type LeasePortfolioTableProps = Readonly<{
   leases: DashboardLeaseRow[];
 }>;
@@ -54,7 +47,8 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
         <h2 className="text-base font-semibold text-slate-900">Lease portfolio</h2>
         <p className="mt-0.5 text-sm text-slate-500">
           Next action from structured data (break notice → rent review → expiry → manual review). Saved after
-          analysis completes. Click any row to open the lease detail page.
+          analysis completes. Live extraction progress updates while you stay on this page; click any row for the
+          lease detail page.
         </p>
       </div>
       {leases.length === 0 ? (
@@ -69,7 +63,7 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-5 py-3 font-medium">Property name</th>
@@ -78,13 +72,12 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                 <th className="px-5 py-3 font-medium">Days remaining</th>
                 <th className="px-5 py-3 font-medium">Urgency</th>
                 <th className="px-5 py-3 font-medium">Risk level</th>
-                <th className="px-5 py-3 font-medium">Processing status</th>
+                <th className="px-5 py-3 font-medium">Extraction progress</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {leases.map((lease) => {
                 const risk = riskStyles[lease.riskLevel];
-                const ex = extractionStyles[lease.extractionStatus];
                 const urg =
                   lease.urgencyLevel != null ? urgencyStyles[lease.urgencyLevel] : null;
                 const href = `/lease/${lease.id}`;
@@ -140,8 +133,8 @@ export function LeasePortfolioTable({ leases }: LeasePortfolioTableProps) {
                         {risk.label}
                       </span>
                     </td>
-                    <td className={`whitespace-nowrap px-5 py-3.5 text-sm font-medium ${ex.className}`}>
-                      {ex.label}
+                    <td className="px-5 py-3.5 align-top">
+                      <LeaseExtractionProgress status={lease.extractionStatus} />
                     </td>
                   </tr>
                 );
