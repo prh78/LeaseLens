@@ -103,7 +103,7 @@ export function LeaseProcessingStatus() {
       }
 
       try {
-        await fetch("/api/extract", {
+        const res = await fetch("/api/extract", {
           method: "POST",
           credentials: "same-origin",
           headers: {
@@ -112,6 +112,11 @@ export function LeaseProcessingStatus() {
           },
           body: JSON.stringify({ leaseId }),
         });
+        if (!res.ok) {
+          extractKickoffDone.current = false;
+        }
+      } catch {
+        extractKickoffDone.current = false;
       } finally {
         void fetchLease();
       }

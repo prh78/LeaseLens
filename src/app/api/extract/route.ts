@@ -5,7 +5,7 @@ import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { sortLeaseDocumentsForExtraction } from "@/lib/lease/sort-lease-documents-for-extraction";
 import { extractTextFromPdfBuffer } from "@/lib/pdf/extract-text";
 import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
-import type { Database, LeaseDocumentType } from "@/lib/supabase/database.types";
+import type { Database, Json, LeaseDocumentType } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -261,28 +261,24 @@ export async function POST(request: Request) {
 
     const mergedText = textSections.join("").trimStart();
 
-    const { data: existingExtracted } = await admin
-      .from("extracted_data")
-      .select("lease_id")
-      .eq("lease_id", leaseId)
-      .maybeSingle();
-
-    if (existingExtracted) {
+    const insertPayload: Database["public"]["Tables"]["extracted_data"]["Insert"] = {
+      lease_id: leaseId,
+      raw_text: mergedText,
+      break_dates: [] as unknown as Json,
+      rent_review_dates: [] as unknown as Json,
+      source_snippets: {} as Json,
+    };
+    const { error: insErr } = await admin.from("extracted_data").insert(insertPayload);
+    const duplicateKey =
+      insErr?.code === "23505" ||
+      (typeof insErr?.message === "string" && insErr.message.toLowerCase().includes("duplicate key"));
+    if (insErr && duplicateKey) {
       const { error: upErr } = await admin.from("extracted_data").update({ raw_text: mergedText }).eq("lease_id", leaseId);
       if (upErr) {
         throw new Error(upErr.message);
       }
-    } else {
-      const { error: insErr } = await admin.from("extracted_data").insert({
-        lease_id: leaseId,
-        raw_text: mergedText,
-        break_dates: [],
-        rent_review_dates: [],
-        source_snippets: {},
-      });
-      if (insErr) {
-        throw new Error(insErr.message);
-      }
+    } else if (insErr) {
+      throw new Error(insErr.message);
     }
 
     const { error: doneErr } = await admin
