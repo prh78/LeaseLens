@@ -10,17 +10,14 @@ import type { Json, LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/su
 export type { LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
 
 /** How a break row contributes to portfolio “critical” metrics and copy. */
-export type BreakClauseNextTier = "opportunity" | "decision_reminder" | "committed_exercise";
+export type BreakClauseNextTier = "decision_reminder" | "committed_exercise";
 
 export type LeaseNextActionResult = Readonly<{
   action_type: LeaseNextActionType;
   action_date: string | null;
   days_remaining: number | null;
   urgency_level: LeaseNextActionUrgency;
-  /**
-   * When false, the lease is not counted in “critical actions due” for this item (informational breaks).
-   * Omitted means true.
-   */
+  /** When false, excluded from “critical actions due” metrics. Omitted means true. */
   counts_toward_critical?: boolean;
   /** Present when `action_type` is `break_notice_deadline` and the row comes from a dated break. */
   break_clause_tier?: BreakClauseNextTier;
@@ -37,9 +34,6 @@ export const LEASE_NEXT_ACTION_LABEL: Record<LeaseNextActionType, string> = {
 export function nextActionDisplayLabel(next: LeaseNextActionResult): string {
   if (next.action_type !== "break_notice_deadline" || next.break_clause_tier == null) {
     return LEASE_NEXT_ACTION_LABEL[next.action_type];
-  }
-  if (next.break_clause_tier === "opportunity") {
-    return "Break opportunity (informational)";
   }
   if (next.break_clause_tier === "decision_reminder") {
     return "Break decision reminder";
@@ -126,7 +120,8 @@ function capUrgency(level: LeaseNextActionUrgency, cap: LeaseNextActionUrgency):
   return rank[level] <= rank[cap] ? level : cap;
 }
 
-type BreakPriorityTier = 0 | 1 | 2;
+/** 0 = committed exercise; 1 = decision needed (available or under review). */
+type BreakPriorityTier = 0 | 1;
 
 type BreakResultWithTier = LeaseNextActionResult & { readonly _tier: BreakPriorityTier };
 
@@ -172,18 +167,19 @@ function singleBreakRow(
   }
 
   if (status === "available") {
-    const days = calendarDaysRemaining(breakIso);
+    const effectiveIso = breakNoticeDeadlineIso(breakIso, extracted.notice_period_days) ?? breakIso;
+    const days = calendarDaysRemaining(effectiveIso);
     if (days === null) {
       return null;
     }
     return {
       action_type: "break_notice_deadline",
-      action_date: breakIso,
+      action_date: effectiveIso,
       days_remaining: days,
-      urgency_level: "low",
-      counts_toward_critical: false,
-      break_clause_tier: "opportunity",
-      _tier: 2,
+      urgency_level: capUrgency(urgencyFromDays(days), "high"),
+      counts_toward_critical: true,
+      break_clause_tier: "decision_reminder",
+      _tier: 1,
     };
   }
 
@@ -306,7 +302,6 @@ export function computeAllLeaseActionsInPriorityOrder(
   if (exp) {
     out.push(exp);
   }
-  out.push(...sortedBreakTierStrip(tiers, 2));
   if (needsManualReview(extracted)) {
     out.push({
       action_type: "manual_review",
@@ -319,8 +314,8 @@ export function computeAllLeaseActionsInPriorityOrder(
 }
 
 /**
- * Strict priority: (1) committed break notice (intend to exercise), (2) break under review,
- * (3) rent reviews, (4) lease expiry, (5) informational break opportunities, (6) manual review.
+ * Strict priority: (1) committed break notice (intend to exercise), (2) break decision reminder
+ * (available or under review), (3) rent reviews, (4) lease expiry, (5) manual review.
  */
 export function computeLeaseNextAction(extracted: ExtractedForNextAction | null): LeaseNextActionResult | null {
   if (!extracted) {
@@ -332,9 +327,9 @@ export function computeLeaseNextAction(extracted: ExtractedForNextAction | null)
   if (intend) {
     return stripBreakTier(intend);
   }
-  const review = pickSoonestTierRow(tiers, 1);
-  if (review) {
-    return stripBreakTier(review);
+  const decision = pickSoonestTierRow(tiers, 1);
+  if (decision) {
+    return stripBreakTier(decision);
   }
 
   const r = bestIsoInTier(tier2RentReviewIsos(extracted));
@@ -357,11 +352,6 @@ export function computeLeaseNextAction(extracted: ExtractedForNextAction | null)
         urgency_level: urgencyFromDays(days),
       };
     }
-  }
-
-  const opportunity = pickSoonestTierRow(tiers, 2);
-  if (opportunity) {
-    return stripBreakTier(opportunity);
   }
 
   if (needsManualReview(extracted)) {
