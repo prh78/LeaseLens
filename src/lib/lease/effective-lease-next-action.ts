@@ -5,13 +5,18 @@ import {
 } from "@/lib/lease/compute-lease-next-action";
 import type { Tables } from "@/lib/supabase/database.types";
 
-export function extractedRowToNextActionInput(row: Tables<"extracted_data">): ExtractedForNextAction {
+export function extractedRowToNextActionInput(
+  row: Tables<"extracted_data">,
+  leaseJurisdiction?: string | null,
+): ExtractedForNextAction {
   return {
     expiry_date: row.expiry_date,
     break_dates: row.break_dates,
     break_clause_status: row.break_clause_status,
     notice_period_days: row.notice_period_days,
     notice_period_spec: row.notice_period_spec,
+    premises_country: row.premises_country,
+    lease_jurisdiction: leaseJurisdiction ?? undefined,
     rent_review_dates: row.rent_review_dates,
     ambiguous_language: row.ambiguous_language,
     manual_review_recommended: row.manual_review_recommended,
@@ -27,7 +32,7 @@ export function effectiveLeaseNextAction(
   extracted: Tables<"extracted_data"> | null,
 ): LeaseNextActionResult | null {
   if (extracted) {
-    return computeLeaseNextAction(extractedRowToNextActionInput(extracted));
+    return computeLeaseNextAction(extractedRowToNextActionInput(extracted, lease.lease_jurisdiction));
   }
 
   if (

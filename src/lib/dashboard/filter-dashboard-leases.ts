@@ -1,4 +1,5 @@
 import type { DashboardLeaseRow } from "@/lib/dashboard/types";
+import type { LeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
 import type { ExtractionStatus, OverallRisk } from "@/lib/supabase/database.types";
 
 export type DueWithinHorizon = 30 | 90 | 180;
@@ -10,6 +11,8 @@ export type DashboardPortfolioFilterState = Readonly<{
   propertyType: string | null;
   extractionStatus: ExtractionStatus | null;
   dueWithinDays: DueWithinHorizon | null;
+  /** `null` = all region packs. */
+  leaseJurisdiction: LeaseJurisdiction | null;
 }>;
 
 export const defaultDashboardPortfolioFilters: DashboardPortfolioFilterState = {
@@ -18,6 +21,7 @@ export const defaultDashboardPortfolioFilters: DashboardPortfolioFilterState = {
   propertyType: null,
   extractionStatus: null,
   dueWithinDays: null,
+  leaseJurisdiction: null,
 };
 
 export function filterDashboardLeases(
@@ -48,6 +52,9 @@ export function filterDashboardLeases(
         return false;
       }
     }
+    if (filters.leaseJurisdiction != null && row.leaseJurisdiction !== filters.leaseJurisdiction) {
+      return false;
+    }
     return true;
   });
 }
@@ -67,6 +74,9 @@ export function countActivePortfolioFilters(filters: DashboardPortfolioFilterSta
     n += 1;
   }
   if (filters.dueWithinDays != null) {
+    n += 1;
+  }
+  if (filters.leaseJurisdiction != null) {
     n += 1;
   }
   return n;

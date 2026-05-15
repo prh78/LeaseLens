@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { computeLeaseNextAction } from "@/lib/lease/compute-lease-next-action";
-import type { Database } from "@/lib/supabase/database.types";
+import { extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
+import type { Database, Tables } from "@/lib/supabase/database.types";
 
 type Admin = SupabaseClient<Database>;
 
@@ -19,7 +20,7 @@ const nullAction = {
 export async function syncLeaseNextAction(admin: Admin, leaseId: string): Promise<void> {
   const { data: lease, error: leaseErr } = await admin
     .from("leases")
-    .select("extraction_status")
+    .select("extraction_status, lease_jurisdiction")
     .eq("id", leaseId)
     .maybeSingle();
 
@@ -31,7 +32,7 @@ export async function syncLeaseNextAction(admin: Admin, leaseId: string): Promis
   const { data: extracted, error: exErr } = await admin
     .from("extracted_data")
     .select(
-      "expiry_date, break_dates, break_clause_status, notice_period_days, notice_period_spec, rent_review_dates, ambiguous_language, manual_review_recommended",
+      "expiry_date, break_dates, break_clause_status, notice_period_days, notice_period_spec, premises_country, rent_review_dates, ambiguous_language, manual_review_recommended",
     )
     .eq("lease_id", leaseId)
     .maybeSingle();
@@ -41,7 +42,9 @@ export async function syncLeaseNextAction(admin: Admin, leaseId: string): Promis
     return;
   }
 
-  const computed = computeLeaseNextAction(extracted);
+  const computed = computeLeaseNextAction(
+    extractedRowToNextActionInput(extracted as Tables<"extracted_data">, lease.lease_jurisdiction),
+  );
 
   if (!computed) {
     await admin.from("leases").update(nullAction).eq("id", leaseId);

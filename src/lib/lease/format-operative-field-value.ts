@@ -4,11 +4,10 @@ import {
   effectiveExpiryDate,
   isExpiryOverriddenByIntendedBreak,
   isExpiryOverriddenByServedNotice,
+  noticeMathContextFromExtracted,
   parseBreakClauseEntryMap,
   tenancyEndFromServedNotice,
 } from "@/lib/lease/break-clause-status";
-import { resolvedNoticePeriodDayCount } from "@/lib/lease/jurisdiction/notice-period";
-import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
 import { DEFAULT_DISPLAY_LOCALE, formatAppDate } from "@/lib/lease/format-app-date";
 import { formatNoticePeriodLines } from "@/lib/lease/jurisdiction/format-notice-period-lines";
 import type { Tables } from "@/lib/supabase/database.types";
@@ -43,22 +42,32 @@ export function formatOperativeFieldLines(
   options: FormatOperativeOptions = {},
 ): string[] {
   const locale = options.locale ?? DEFAULT_DISPLAY_LOCALE;
+  const expiryInput = {
+    expiry_date: extracted.expiry_date,
+    break_dates: extracted.break_dates,
+    break_clause_status: extracted.break_clause_status,
+    notice_period_days: extracted.notice_period_days,
+    notice_period_spec: extracted.notice_period_spec,
+    premises_country: extracted.premises_country,
+    lease_jurisdiction: options.leaseJurisdiction ?? null,
+  };
+  const noticeCtx = noticeMathContextFromExtracted(expiryInput);
 
   switch (field) {
     case "term_commencement_date":
     case "rent_commencement_date":
     case "expiry_date": {
       if (field === "expiry_date") {
-        const effective = effectiveExpiryDate(extracted);
+        const effective = effectiveExpiryDate(expiryInput);
         const f = formatAppDate(effective, locale);
         const lines: string[] = [f ? f : "—"];
-        if (isExpiryOverriddenByServedNotice(extracted)) {
+        if (isExpiryOverriddenByServedNotice(expiryInput)) {
           const contractual = formatAppDate(extracted.expiry_date, locale);
           if (contractual) {
             lines.push(`Contractual expiry in lease: ${contractual}`);
           }
           lines.push("Updated from break notice served date plus notice period.");
-        } else if (isExpiryOverriddenByIntendedBreak(extracted)) {
+        } else if (isExpiryOverriddenByIntendedBreak(expiryInput)) {
           const contractual = formatAppDate(extracted.expiry_date, locale);
           if (contractual) {
             lines.push(`Contractual expiry in lease: ${contractual}`);
@@ -91,11 +100,9 @@ export function formatOperativeFieldLines(
           if (st === "served" && entry.served) {
             const servedLabel =
               formatAppDate(entry.served.notice_served_date, locale) ?? entry.served.notice_served_date;
-            const noticeDays = resolvedNoticePeriodDayCount(
-              extracted.notice_period_days,
-              parseNoticePeriodSpec(extracted.notice_period_spec),
-            );
-            const end = tenancyEndFromServedNotice(entry.served.notice_served_date, noticeDays);
+            const end = tenancyEndFromServedNotice(entry.served.notice_served_date, noticeCtx, {
+              breakDateIso: d,
+            });
             const endLabel = end ? formatAppDate(end, locale) : null;
             line += ` — notice served ${servedLabel}`;
             if (endLabel) {

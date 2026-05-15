@@ -1,7 +1,11 @@
 import { parseIsoDateUtc, startOfTodayUtc, utcDateOnlyString } from "@/lib/alerts/date-helpers";
 import { jsonStringArray } from "@/lib/lease/lease-detail";
-import { resolvedNoticePeriodDayCount } from "@/lib/lease/jurisdiction/notice-period";
-import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
+import {
+  buildNoticeMathContext,
+  projectedTenancyEndIfNoticeServedOn,
+  tenancyEndFromServedNotice as tenancyEndFromServedNoticeMath,
+  type NoticeMathContext,
+} from "@/lib/lease/jurisdiction/notice-math";
 import type { Json } from "@/lib/supabase/database.types";
 
 export const BREAK_CLAUSE_STATUSES = [
@@ -163,43 +167,9 @@ export function servedDetailsForBreakDate(
   return entry?.status === "served" ? entry.served : null;
 }
 
-/**
- * Tenancy end from a served break notice (notice served date + notice period).
- * Returns null when inputs are invalid.
- */
-export function tenancyEndFromServedNotice(
-  noticeServedDate: string,
-  noticePeriodDays: number | null,
-): string | null {
-  if (!validIsoDate(noticeServedDate)) {
-    return null;
-  }
-  const n =
-    noticePeriodDays != null && Number.isFinite(noticePeriodDays)
-      ? Math.floor(noticePeriodDays)
-      : null;
-  if (n != null && n >= 1) {
-    const d = parseIsoDateUtc(noticeServedDate);
-    if (!d) {
-      return null;
-    }
-    d.setUTCDate(d.getUTCDate() + n);
-    return utcDateOnlyString(d);
-  }
-  return noticeServedDate;
-}
-
 /** UTC calendar date (YYYY-MM-DD) for today. */
 export function todayUtcIso(): string {
   return utcDateOnlyString(startOfTodayUtc());
-}
-
-/**
- * While break notice is intended but not yet served: tenancy end if notice were served today
- * (advances by one calendar day each day until served).
- */
-export function projectedTenancyEndIfNoticeServedToday(noticePeriodDays: number | null): string | null {
-  return tenancyEndFromServedNotice(todayUtcIso(), noticePeriodDays);
 }
 
 export type ExtractedForEffectiveExpiry = Readonly<{
@@ -208,13 +178,56 @@ export type ExtractedForEffectiveExpiry = Readonly<{
   break_clause_status?: Json | null;
   notice_period_days: number | null;
   notice_period_spec?: Json | null;
+  premises_country?: string | null;
+  lease_jurisdiction?: string | null;
 }>;
 
-function noticeDaysForExpiry(extracted: ExtractedForEffectiveExpiry): number | null {
-  return resolvedNoticePeriodDayCount(
-    extracted.notice_period_days,
-    parseNoticePeriodSpec(extracted.notice_period_spec),
-  );
+export function noticeMathContextFromExtracted(extracted: ExtractedForEffectiveExpiry): NoticeMathContext {
+  return buildNoticeMathContext({
+    leaseJurisdiction: extracted.lease_jurisdiction,
+    premisesCountry: extracted.premises_country,
+    noticePeriodDays: extracted.notice_period_days,
+    noticePeriodSpec: extracted.notice_period_spec,
+  });
+}
+
+/**
+ * Tenancy end from a served break notice (notice served date + notice period).
+ * Prefer `noticeMathContextFromExtracted` + jurisdiction-aware math via the overload with context.
+ */
+export function tenancyEndFromServedNotice(
+  noticeServedDate: string,
+  noticePeriodDays: number | null,
+): string | null;
+export function tenancyEndFromServedNotice(
+  noticeServedDate: string,
+  ctx: NoticeMathContext,
+  options?: Readonly<{ breakDateIso?: string }>,
+): string | null;
+export function tenancyEndFromServedNotice(
+  noticeServedDate: string,
+  ctxOrDays: NoticeMathContext | number | null,
+  options?: Readonly<{ breakDateIso?: string }>,
+): string | null {
+  if (typeof ctxOrDays === "number" || ctxOrDays === null) {
+    return tenancyEndFromServedNoticeMath(
+      noticeServedDate,
+      buildNoticeMathContext({ noticePeriodDays: ctxOrDays, noticePeriodSpec: null }),
+      options,
+    );
+  }
+  return tenancyEndFromServedNoticeMath(noticeServedDate, ctxOrDays, options);
+}
+
+/**
+ * While break notice is intended but not yet served: tenancy end if notice were served today
+ * (advances by one calendar day each day until served).
+ */
+export function projectedTenancyEndIfNoticeServedToday(
+  ctx: NoticeMathContext,
+  breakDateIso?: string,
+): string | null {
+  return projectedTenancyEndIfNoticeServedOn(ctx, todayUtcIso(), { breakDateIso });
 }
 
 /**
@@ -224,7 +237,7 @@ function noticeDaysForExpiry(extracted: ExtractedForEffectiveExpiry): number | n
  */
 export function effectiveExpiryDate(extracted: ExtractedForEffectiveExpiry): string | null {
   const entryMap = parseBreakClauseEntryMap(extracted.break_clause_status ?? null);
-  const noticeDays = noticeDaysForExpiry(extracted);
+  const noticeCtx = noticeMathContextFromExtracted(extracted);
   const servedEnds: string[] = [];
   const intendedEnds: string[] = [];
 
@@ -234,14 +247,16 @@ export function effectiveExpiryDate(extracted: ExtractedForEffectiveExpiry): str
       continue;
     }
     if (entry.status === "served" && entry.served) {
-      const end = tenancyEndFromServedNotice(entry.served.notice_served_date, noticeDays);
+      const end = tenancyEndFromServedNotice(entry.served.notice_served_date, noticeCtx, {
+        breakDateIso: breakIso,
+      });
       if (end) {
         servedEnds.push(end);
       }
       continue;
     }
     if (entry.status === "intend_to_exercise") {
-      const end = projectedTenancyEndIfNoticeServedToday(noticeDays);
+      const end = projectedTenancyEndIfNoticeServedToday(noticeCtx, breakIso);
       if (end) {
         intendedEnds.push(end);
       }

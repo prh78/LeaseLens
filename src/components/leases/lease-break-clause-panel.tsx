@@ -20,10 +20,13 @@ import {
   type BreakClauseStatus,
   breakDatesFromExtracted,
   parseBreakClauseEntryMap,
+  noticeMathContextFromExtracted,
   projectedTenancyEndIfNoticeServedToday,
   tenancyEndFromServedNotice,
 } from "@/lib/lease/break-clause-status";
+import { breakRulesHint } from "@/lib/lease/jurisdiction/break-rules";
 import { evidenceLabelsForJurisdiction, labelsForJurisdiction } from "@/lib/lease/jurisdiction/labels";
+import { extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
 import { effectiveNoticePeriodDays } from "@/lib/lease/jurisdiction/notice-period";
 import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
 import { isLeaseJurisdiction, type LeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
@@ -339,6 +342,12 @@ export function LeaseBreakClausePanel({ leaseId, extracted, leaseJurisdiction }:
   );
   const dates = breakDatesFromExtracted(extracted.break_dates);
   const noticeDays = noticeResolved.days;
+  const noticeCtx = noticeMathContextFromExtracted({
+    ...extracted,
+    lease_jurisdiction: leaseJurisdiction,
+  });
+  const breakMathInput = extractedRowToNextActionInput(extracted, leaseJurisdiction);
+  const rulesHint = breakRulesHint(leaseJurisdiction);
   const [entryMap, setEntryMap] = useState(() => parseBreakClauseEntryMap(extracted.break_clause_status));
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -421,6 +430,9 @@ export function LeaseBreakClausePanel({ leaseId, extracted, leaseJurisdiction }:
   return (
     <div className="space-y-2">
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
+      {rulesHint ? (
+        <p className="rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-xs text-sky-950">{rulesHint}</p>
+      ) : null}
       {noticeResolved.warning ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-950">
           {noticeResolved.warning}
@@ -429,17 +441,17 @@ export function LeaseBreakClausePanel({ leaseId, extracted, leaseJurisdiction }:
       ) : null}
       {dates.map((iso) => {
         const breakLabel = formatDate(iso);
-        const availableFromIso = breakWindowOpensIso(iso, noticeDays);
+        const availableFromIso = breakWindowOpensIso(iso, breakMathInput);
         const availableFromLabel = availableFromIso != null ? formatDate(availableFromIso) : "—";
         const entry = entryMap[iso] ?? { status: "available" as const, served: null };
         const tenancyEndIso =
           entry.status === "served" && entry.served
-            ? tenancyEndFromServedNotice(entry.served.notice_served_date, noticeDays)
+            ? tenancyEndFromServedNotice(entry.served.notice_served_date, noticeCtx, { breakDateIso: iso })
             : null;
         const tenancyEndLabel = tenancyEndIso != null ? formatDate(tenancyEndIso) : null;
         const projectedEndIso =
           entry.status === "intend_to_exercise"
-            ? projectedTenancyEndIfNoticeServedToday(noticeDays)
+            ? projectedTenancyEndIfNoticeServedToday(noticeCtx, iso)
             : null;
         const projectedEndIfServedTodayLabel = projectedEndIso != null ? formatDate(projectedEndIso) : null;
 

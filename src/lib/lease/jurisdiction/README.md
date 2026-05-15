@@ -1,6 +1,6 @@
 # International lease sketch (jurisdiction + notice units)
 
-**Status:** Phase 1 and Phase 2 implemented.
+**Status:** Phases 1–3 implemented.
 
 ## Rollout phases
 
@@ -17,45 +17,26 @@
 3. Operative terms: “Lease context” block for `governing_law`, `premises_country`, `rent_currency`, region pack.
 4. Notice line: amber banner with `source_text` when conversion is not confident.
 
-### Phase 3 — Rules (optional)
-1. Jurisdiction-specific break math flags (e.g. US early termination vs UK break).
-2. Business-day calendar per `premises_country`.
-3. Portfolio filter by `lease_jurisdiction`.
+### Phase 3 — Rules (done)
+1. **`break-rules.ts`** — per region pack: break vs early termination, calendar-month notice windows (UK/EU), US end-date cap at break date.
+2. **`business-days.ts`** + **`notice-math.ts`** — business-day notice walks Mon–Fri (+ US federal holidays sketch) using `premises_country`; month notice subtracts/adds calendar months when anchored before break date.
+3. **Portfolio filter** — “Region pack” dropdown on dashboard filters (`lease_jurisdiction`).
+
+## Key modules
+
+| Module | Role |
+|--------|------|
+| `break-rules.ts` | Jurisdiction flags and UI hints |
+| `business-days.ts` | `premises_country` → business-day locale |
+| `notice-math.ts` | `breakWindowOpensIso`, `tenancyEndFromServedNotice`, projected end |
+| `notice-period.ts` | Spec → day count; calendar month helpers |
 
 ## Wiring checklist
 
 | File | Change |
 |------|--------|
-| `database.types.ts` | Regenerate after migration |
-| `openai-analyse.ts` | `buildAnalyseSystemPrompt(jurisdiction)` + extra JSON keys |
-| `app/api/analyse/route.ts` | Pass `lease.lease_jurisdiction`; save new fields |
-| `upload` / lease create | Set `lease_jurisdiction` |
-| `break-clause-status.ts` / compute | Use `effectiveNoticePeriodDays()` |
-| `lease-break-clause-panel.tsx` | `labelsForJurisdiction()` |
-| `format-next-action-due-label.ts` | Locale param |
-| `notification-settings-form.tsx` | Display locale selector |
-| `lease-operative-terms.tsx` | Lease context block + locale options |
-
-## API sketch (lease PATCH)
-
-```json
-{ "lease_jurisdiction": "us" }
-```
-
-## Analyse output example
-
-```json
-{
-  "notice_period_spec": {
-    "value": 6,
-    "unit": "months",
-    "day_basis": "calendar",
-    "anchor": "before_break_date",
-    "source_text": "not less than 6 months before the Break Date"
-  },
-  "notice_period_days": null,
-  "governing_law": "State of New York",
-  "premises_country": "US",
-  "rent_currency": "USD"
-}
-```
+| `break-clause-status.ts` | Delegates to `notice-math` via `noticeMathContextFromExtracted` |
+| `compute-lease-next-action.ts` | Passes jurisdiction + premises into break math |
+| `fetch-dashboard-data.ts` | Loads `lease_jurisdiction`, `premises_country`, `notice_period_spec` |
+| `filter-dashboard-leases.ts` | `leaseJurisdiction` filter |
+| `lease-break-clause-panel.tsx` | Region hints + jurisdiction-aware dates |

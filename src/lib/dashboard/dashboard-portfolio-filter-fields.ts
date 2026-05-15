@@ -1,3 +1,4 @@
+import { LEASE_JURISDICTION_LABEL, LEASE_JURISDICTIONS } from "@/lib/lease/jurisdiction/types";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
 import type { ExtractionStatus, OverallRisk } from "@/lib/supabase/database.types";
 
@@ -24,6 +25,11 @@ export const DASHBOARD_PORTFOLIO_DUE_WITHIN_OPTIONS: readonly { value: DueWithin
   { value: 90, label: "90 days" },
   { value: 180, label: "180 days" },
 ];
+
+export const DASHBOARD_PORTFOLIO_JURISDICTION_OPTIONS = LEASE_JURISDICTIONS.map((value) => ({
+  value,
+  label: LEASE_JURISDICTION_LABEL[value],
+}));
 
 export const DASHBOARD_PORTFOLIO_PROPERTY_TYPE_OPTIONS = [
   ...PROPERTY_TYPES.map((p) => ({ value: p.value, label: p.label })),

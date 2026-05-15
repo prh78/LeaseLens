@@ -22,6 +22,8 @@ export type DashboardLeaseRow = Readonly<{
   propertyName: string;
   /** Raw `leases.property_type` (e.g. office, unknown). */
   propertyType: string;
+  /** Region pack (`leases.lease_jurisdiction`). */
+  leaseJurisdiction: string;
   /** From `extracted_data.expiry_date` vs today (UTC calendar). */
   termStatus: LeaseTermStatus;
   /** ISO calendar date `YYYY-MM-DD` from `extracted_data`, or null when unknown / not extracted. */

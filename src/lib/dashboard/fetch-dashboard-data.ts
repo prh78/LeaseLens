@@ -22,6 +22,7 @@ export async function fetchDashboardData(
       id,
       property_name,
       property_type,
+      lease_jurisdiction,
       overall_risk,
       extraction_status,
       upload_date,
@@ -39,6 +40,7 @@ export async function fetchDashboardData(
         break_clause_status,
         notice_period_days,
         notice_period_spec,
+        premises_country,
         rent_review_dates,
         ambiguous_language,
         manual_review_recommended

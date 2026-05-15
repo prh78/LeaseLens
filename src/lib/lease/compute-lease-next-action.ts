@@ -2,12 +2,13 @@ import { parseIsoDateUtc, utcDateOnlyString } from "@/lib/alerts/date-helpers";
 import {
   effectiveExpiryDate,
   isBreakClauseSuppressed,
+  noticeMathContextFromExtracted,
   parseBreakClauseStatusMap,
   projectedTenancyEndIfNoticeServedToday,
   statusForBreakDate,
+  type ExtractedForEffectiveExpiry,
 } from "@/lib/lease/break-clause-status";
-import { resolvedNoticePeriodDayCount } from "@/lib/lease/jurisdiction/notice-period";
-import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
+import { breakWindowOpensIso as breakWindowOpensIsoMath } from "@/lib/lease/jurisdiction/notice-math";
 import { DEFAULT_DISPLAY_LOCALE, formatAppDate } from "@/lib/lease/format-app-date";
 import { jsonStringArray } from "@/lib/lease/lease-detail";
 import type { Json, LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
@@ -60,16 +61,23 @@ export type ExtractedForNextAction = Readonly<{
   break_clause_status?: Json | null;
   notice_period_days: number | null;
   notice_period_spec?: Json | null;
+  premises_country?: string | null;
+  lease_jurisdiction?: string | null;
   rent_review_dates: Json;
   ambiguous_language: boolean | null;
   manual_review_recommended: boolean | null;
 }>;
 
-function noticeDaysForNextAction(extracted: ExtractedForNextAction): number | null {
-  return resolvedNoticePeriodDayCount(
-    extracted.notice_period_days,
-    parseNoticePeriodSpec(extracted.notice_period_spec),
-  );
+function extractedToExpiryInput(extracted: ExtractedForNextAction): ExtractedForEffectiveExpiry {
+  return {
+    expiry_date: extracted.expiry_date,
+    break_dates: extracted.break_dates,
+    break_clause_status: extracted.break_clause_status,
+    notice_period_days: extracted.notice_period_days,
+    notice_period_spec: extracted.notice_period_spec,
+    premises_country: extracted.premises_country,
+    lease_jurisdiction: extracted.lease_jurisdiction,
+  };
 }
 
 export function calendarDaysRemaining(iso: string): number | null {
@@ -145,9 +153,15 @@ export function breakNoticeDeadlineIso(breakIso: string, noticePeriodDays: numbe
   return breakIso;
 }
 
-/** First date the break option may be exercised (same calendar rule as notice deadline). */
-export function breakWindowOpensIso(breakIso: string, noticePeriodDays: number | null): string | null {
-  return breakNoticeDeadlineIso(breakIso, noticePeriodDays);
+/** First date the break option may be exercised (jurisdiction-aware when context is provided). */
+export function breakWindowOpensIso(
+  breakIso: string,
+  ctxOrNoticeDays: ExtractedForNextAction | number | null,
+): string | null {
+  if (ctxOrNoticeDays != null && typeof ctxOrNoticeDays === "object") {
+    return breakWindowOpensIsoMath(breakIso, noticeMathContextFromExtracted(extractedToExpiryInput(ctxOrNoticeDays)));
+  }
+  return breakNoticeDeadlineIso(breakIso, ctxOrNoticeDays);
 }
 
 /** Portfolio / detail copy when a break is a decision reminder (no due date). */
@@ -179,8 +193,9 @@ type BreakResultWithTier = LeaseNextActionResult & {
   readonly _sortDays: number;
 };
 
-function intendProjectedEndRow(extracted: ExtractedForNextAction): BreakResultWithTier | null {
-  const endIso = projectedTenancyEndIfNoticeServedToday(noticeDaysForNextAction(extracted));
+function intendProjectedEndRow(extracted: ExtractedForNextAction, breakIso: string): BreakResultWithTier | null {
+  const ctx = noticeMathContextFromExtracted(extractedToExpiryInput(extracted));
+  const endIso = projectedTenancyEndIfNoticeServedToday(ctx, breakIso);
   if (!endIso) {
     return null;
   }
@@ -204,7 +219,7 @@ function decisionReminderRow(
   extracted: ExtractedForNextAction,
   breakIso: string,
 ): BreakResultWithTier | null {
-  const availableFrom = breakWindowOpensIso(breakIso, noticeDaysForNextAction(extracted));
+  const availableFrom = breakWindowOpensIso(breakIso, extracted);
   if (!availableFrom) {
     return null;
   }
@@ -232,7 +247,7 @@ function singleBreakRow(
   status: ReturnType<typeof statusForBreakDate>,
 ): BreakResultWithTier | null {
   if (status === "intend_to_exercise") {
-    return intendProjectedEndRow(extracted);
+    return intendProjectedEndRow(extracted, breakIso);
   }
 
   if (status === "under_review" || status === "available") {
@@ -323,7 +338,7 @@ function rentReviewActionResults(extracted: ExtractedForNextAction): LeaseNextAc
 }
 
 function expiryActionResult(extracted: ExtractedForNextAction): LeaseNextActionResult | null {
-  const expiryIso = effectiveExpiryDate(extracted);
+  const expiryIso = effectiveExpiryDate(extractedToExpiryInput(extracted));
   if (!expiryIso || !validDateIso(expiryIso)) {
     return null;
   }
@@ -399,7 +414,7 @@ export function computeLeaseNextAction(extracted: ExtractedForNextAction | null)
     };
   }
 
-  const expiryIso = effectiveExpiryDate(extracted);
+  const expiryIso = effectiveExpiryDate(extractedToExpiryInput(extracted));
   if (expiryIso && validDateIso(expiryIso)) {
     const days = calendarDaysRemaining(expiryIso);
     if (days !== null) {

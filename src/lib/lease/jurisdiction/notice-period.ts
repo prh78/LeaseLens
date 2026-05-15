@@ -26,8 +26,9 @@ export function noticePeriodToCalendarDays(spec: NoticePeriodSpec | null | undef
     case "business_days":
       return {
         days: value,
-        confident: false,
-        warning: "Business-day notice stored as day count; confirm against lease and local holidays.",
+        confident: true,
+        warning:
+          "Business-day notice uses Mon–Fri plus locale holidays (US federal where applicable); confirm against your lease.",
       };
     case "months":
       return {
@@ -72,5 +73,15 @@ export function addCalendarMonths(iso: string, months: number): string | null {
     return null;
   }
   d.setUTCMonth(d.getUTCMonth() + months);
+  return utcDateOnlyString(d);
+}
+
+/** Subtract whole calendar months from an ISO date (UTC components). */
+export function subtractCalendarMonths(iso: string, months: number): string | null {
+  const d = parseIsoDateUtc(iso);
+  if (!d || months < 1) {
+    return null;
+  }
+  d.setUTCMonth(d.getUTCMonth() - months);
   return utcDateOnlyString(d);
 }

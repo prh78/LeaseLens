@@ -58,7 +58,7 @@ function severityFromUrgency(level: LeaseNextActionResult["urgency_level"]): Das
 
 function allActionResultsForRow(row: LeaseWithExtracted, nextFallback: LeaseNextActionResult): LeaseNextActionResult[] {
   const extracted = normalizedExtracted(row);
-  const slim = extracted ? extractedRowToNextActionInput(extracted) : null;
+  const slim = extracted ? extractedRowToNextActionInput(extracted, row.lease_jurisdiction) : null;
   const fromExtracted = slim ? computeAllLeaseActionsInPriorityOrder(slim) : [];
   if (fromExtracted.length > 0) {
     return fromExtracted;
@@ -83,7 +83,9 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[], displayLocal
     totalLeases: leaseRows.length,
     criticalActionsDue: leaseRows.filter((row) => {
       const extracted = normalizedExtracted(row);
-      const expiryIso = extracted ? effectiveExpiryDate(extracted) : null;
+      const expiryIso = extracted
+        ? effectiveExpiryDate({ ...extracted, lease_jurisdiction: row.lease_jurisdiction })
+        : null;
       if (leaseTermStatusFromExpiryDate(expiryIso) === "expired") {
         return false;
       }
@@ -95,7 +97,9 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[], displayLocal
 
   const leases: DashboardLeaseRow[] = leaseRows.map((row) => {
     const extracted = normalizedExtracted(row);
-    const expiryDate = extracted ? effectiveExpiryDate(extracted) : null;
+    const expiryDate = extracted
+      ? effectiveExpiryDate({ ...extracted, lease_jurisdiction: row.lease_jurisdiction })
+      : null;
     const termStatus = leaseTermStatusFromExpiryDate(expiryDate);
 
     if (termStatus === "expired") {
@@ -103,6 +107,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[], displayLocal
         id: row.id,
         propertyName: row.property_name,
         propertyType: row.property_type,
+        leaseJurisdiction: row.lease_jurisdiction,
         termStatus,
         expiryDate,
         nextCriticalAction: "—",
@@ -126,6 +131,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[], displayLocal
       id: row.id,
       propertyName: row.property_name,
       propertyType: row.property_type,
+      leaseJurisdiction: row.lease_jurisdiction,
       termStatus,
       expiryDate,
       nextCriticalAction: next ? nextActionDisplayLabel(next) : "—",

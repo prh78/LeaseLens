@@ -6,6 +6,7 @@ import { useDashboardPortfolioFilters } from "@/components/dashboard/dashboard-p
 import {
   DASHBOARD_PORTFOLIO_DUE_WITHIN_OPTIONS,
   DASHBOARD_PORTFOLIO_EXTRACTION_OPTIONS,
+  DASHBOARD_PORTFOLIO_JURISDICTION_OPTIONS,
   DASHBOARD_PORTFOLIO_PROPERTY_TYPE_OPTIONS,
   DASHBOARD_PORTFOLIO_RISK_OPTIONS,
   dashboardPortfolioLabelClassName,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/dashboard/dashboard-portfolio-filter-fields";
 import { countActivePortfolioFilters } from "@/lib/dashboard/filter-dashboard-leases";
 import type { DueWithinHorizon } from "@/lib/dashboard/filter-dashboard-leases";
+import type { LeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
 import type { ExtractionStatus, OverallRisk } from "@/lib/supabase/database.types";
 
 function SearchGlyph() {
@@ -57,7 +59,8 @@ export function DashboardHeaderPortfolioSearch() {
     filters.riskLevel != null ||
     filters.propertyType != null ||
     filters.extractionStatus != null ||
-    filters.dueWithinDays != null;
+    filters.dueWithinDays != null ||
+    filters.leaseJurisdiction != null;
 
   const closePanel = useCallback(() => {
     setPanelOpen(false);
@@ -222,6 +225,30 @@ export function DashboardHeaderPortfolioSearch() {
               </select>
             </div>
             <div>
+              <label htmlFor={`${baseId}-region`} className={dashboardPortfolioLabelClassName}>
+                Region pack
+              </label>
+              <select
+                id={`${baseId}-region`}
+                className={dashboardPortfolioSelectClassName}
+                value={filters.leaseJurisdiction ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFilters((prev) => ({
+                    ...prev,
+                    leaseJurisdiction: v === "" ? null : (v as LeaseJurisdiction),
+                  }));
+                }}
+              >
+                <option value="">All regions</option>
+                {DASHBOARD_PORTFOLIO_JURISDICTION_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label htmlFor={`${baseId}-due`} className={dashboardPortfolioLabelClassName}>
                 Action due within
               </label>
@@ -262,6 +289,7 @@ export function DashboardHeaderPortfolioSearch() {
                       propertyType: null,
                       extractionStatus: null,
                       dueWithinDays: null,
+                      leaseJurisdiction: null,
                     }));
                   }}
                 >
