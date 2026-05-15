@@ -38,6 +38,7 @@ export async function fetchDashboardData(
         break_dates,
         break_clause_status,
         notice_period_days,
+        notice_period_spec,
         rent_review_dates,
         ambiguous_language,
         manual_review_recommended
