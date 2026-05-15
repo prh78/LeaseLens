@@ -1,5 +1,7 @@
 import { parseIsoDateUtc, startOfTodayUtc, utcDateOnlyString } from "@/lib/alerts/date-helpers";
 import { jsonStringArray } from "@/lib/lease/lease-detail";
+import { resolvedNoticePeriodDayCount } from "@/lib/lease/jurisdiction/notice-period";
+import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
 import type { Json } from "@/lib/supabase/database.types";
 
 export const BREAK_CLAUSE_STATUSES = [
@@ -205,30 +207,55 @@ export type ExtractedForEffectiveExpiry = Readonly<{
   break_dates: Json;
   break_clause_status?: Json | null;
   notice_period_days: number | null;
+  notice_period_spec?: Json | null;
 }>;
+
+function noticeDaysForExpiry(extracted: ExtractedForEffectiveExpiry): number | null {
+  return resolvedNoticePeriodDayCount(
+    extracted.notice_period_days,
+    parseNoticePeriodSpec(extracted.notice_period_spec),
+  );
+}
 
 /**
  * When a break is marked served with a notice date, expiry reflects served date + notice period.
+ * When marked intend to exercise, expiry reflects today + notice period (rolling until notice is served).
  * Otherwise returns the extracted contractual expiry.
  */
 export function effectiveExpiryDate(extracted: ExtractedForEffectiveExpiry): string | null {
   const entryMap = parseBreakClauseEntryMap(extracted.break_clause_status ?? null);
-  const ends: string[] = [];
+  const noticeDays = noticeDaysForExpiry(extracted);
+  const servedEnds: string[] = [];
+  const intendedEnds: string[] = [];
 
   for (const breakIso of breakDatesFromExtracted(extracted.break_dates)) {
     const entry = entryMap[breakIso];
-    if (entry?.status !== "served" || !entry.served) {
+    if (!entry) {
       continue;
     }
-    const end = tenancyEndFromServedNotice(entry.served.notice_served_date, extracted.notice_period_days);
-    if (end) {
-      ends.push(end);
+    if (entry.status === "served" && entry.served) {
+      const end = tenancyEndFromServedNotice(entry.served.notice_served_date, noticeDays);
+      if (end) {
+        servedEnds.push(end);
+      }
+      continue;
+    }
+    if (entry.status === "intend_to_exercise") {
+      const end = projectedTenancyEndIfNoticeServedToday(noticeDays);
+      if (end) {
+        intendedEnds.push(end);
+      }
     }
   }
 
-  if (ends.length > 0) {
-    ends.sort();
-    return ends[0] ?? null;
+  if (servedEnds.length > 0) {
+    servedEnds.sort();
+    return servedEnds[0] ?? null;
+  }
+
+  if (intendedEnds.length > 0) {
+    intendedEnds.sort();
+    return intendedEnds[0] ?? null;
   }
 
   const contractual = extracted.expiry_date;
@@ -240,6 +267,19 @@ export function isExpiryOverriddenByServedNotice(extracted: ExtractedForEffectiv
   for (const breakIso of breakDatesFromExtracted(extracted.break_dates)) {
     const entry = entryMap[breakIso];
     if (entry?.status === "served" && entry.served) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isExpiryOverriddenByIntendedBreak(extracted: ExtractedForEffectiveExpiry): boolean {
+  if (isExpiryOverriddenByServedNotice(extracted)) {
+    return false;
+  }
+  const entryMap = parseBreakClauseEntryMap(extracted.break_clause_status ?? null);
+  for (const breakIso of breakDatesFromExtracted(extracted.break_dates)) {
+    if (entryMap[breakIso]?.status === "intend_to_exercise") {
       return true;
     }
   }

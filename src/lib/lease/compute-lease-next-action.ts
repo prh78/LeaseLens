@@ -6,6 +6,8 @@ import {
   projectedTenancyEndIfNoticeServedToday,
   statusForBreakDate,
 } from "@/lib/lease/break-clause-status";
+import { resolvedNoticePeriodDayCount } from "@/lib/lease/jurisdiction/notice-period";
+import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
 import { DEFAULT_DISPLAY_LOCALE, formatAppDate } from "@/lib/lease/format-app-date";
 import { jsonStringArray } from "@/lib/lease/lease-detail";
 import type { Json, LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
@@ -57,10 +59,18 @@ export type ExtractedForNextAction = Readonly<{
   break_dates: Json;
   break_clause_status?: Json | null;
   notice_period_days: number | null;
+  notice_period_spec?: Json | null;
   rent_review_dates: Json;
   ambiguous_language: boolean | null;
   manual_review_recommended: boolean | null;
 }>;
+
+function noticeDaysForNextAction(extracted: ExtractedForNextAction): number | null {
+  return resolvedNoticePeriodDayCount(
+    extracted.notice_period_days,
+    parseNoticePeriodSpec(extracted.notice_period_spec),
+  );
+}
 
 export function calendarDaysRemaining(iso: string): number | null {
   const event = parseIsoDateUtc(iso);
@@ -170,7 +180,7 @@ type BreakResultWithTier = LeaseNextActionResult & {
 };
 
 function intendProjectedEndRow(extracted: ExtractedForNextAction): BreakResultWithTier | null {
-  const endIso = projectedTenancyEndIfNoticeServedToday(extracted.notice_period_days);
+  const endIso = projectedTenancyEndIfNoticeServedToday(noticeDaysForNextAction(extracted));
   if (!endIso) {
     return null;
   }
@@ -194,7 +204,7 @@ function decisionReminderRow(
   extracted: ExtractedForNextAction,
   breakIso: string,
 ): BreakResultWithTier | null {
-  const availableFrom = breakWindowOpensIso(breakIso, extracted.notice_period_days);
+  const availableFrom = breakWindowOpensIso(breakIso, noticeDaysForNextAction(extracted));
   if (!availableFrom) {
     return null;
   }

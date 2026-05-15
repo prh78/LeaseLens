@@ -57,6 +57,14 @@ export function effectiveNoticePeriodDays(
   return noticePeriodToCalendarDays(spec);
 }
 
+/** Calendar day count for break/expiry math (null when notice cannot be resolved). */
+export function resolvedNoticePeriodDayCount(
+  noticePeriodDays: number | null,
+  spec: NoticePeriodSpec | null | undefined,
+): number | null {
+  return effectiveNoticePeriodDays(noticePeriodDays, spec).days;
+}
+
 /** Add whole calendar months to an ISO date (UTC components). Sketch for month-based notice. */
 export function addCalendarMonths(iso: string, months: number): string | null {
   const d = parseIsoDateUtc(iso);

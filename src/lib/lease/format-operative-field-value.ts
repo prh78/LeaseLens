@@ -2,10 +2,13 @@ import { jsonStringArray } from "@/lib/lease/lease-detail";
 import {
   BREAK_CLAUSE_STATUS_LABEL,
   effectiveExpiryDate,
+  isExpiryOverriddenByIntendedBreak,
   isExpiryOverriddenByServedNotice,
   parseBreakClauseEntryMap,
   tenancyEndFromServedNotice,
 } from "@/lib/lease/break-clause-status";
+import { resolvedNoticePeriodDayCount } from "@/lib/lease/jurisdiction/notice-period";
+import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
 import { DEFAULT_DISPLAY_LOCALE, formatAppDate } from "@/lib/lease/format-app-date";
 import { formatNoticePeriodLines } from "@/lib/lease/jurisdiction/format-notice-period-lines";
 import type { Tables } from "@/lib/supabase/database.types";
@@ -55,6 +58,14 @@ export function formatOperativeFieldLines(
             lines.push(`Contractual expiry in lease: ${contractual}`);
           }
           lines.push("Updated from break notice served date plus notice period.");
+        } else if (isExpiryOverriddenByIntendedBreak(extracted)) {
+          const contractual = formatAppDate(extracted.expiry_date, locale);
+          if (contractual) {
+            lines.push(`Contractual expiry in lease: ${contractual}`);
+          }
+          lines.push(
+            "Projected end if break notice were served today plus notice period. Advances by one day each day until notice is served.",
+          );
         }
         return lines;
       }
@@ -80,10 +91,11 @@ export function formatOperativeFieldLines(
           if (st === "served" && entry.served) {
             const servedLabel =
               formatAppDate(entry.served.notice_served_date, locale) ?? entry.served.notice_served_date;
-            const end = tenancyEndFromServedNotice(
-              entry.served.notice_served_date,
+            const noticeDays = resolvedNoticePeriodDayCount(
               extracted.notice_period_days,
+              parseNoticePeriodSpec(extracted.notice_period_spec),
             );
+            const end = tenancyEndFromServedNotice(entry.served.notice_served_date, noticeDays);
             const endLabel = end ? formatAppDate(end, locale) : null;
             line += ` — notice served ${servedLabel}`;
             if (endLabel) {

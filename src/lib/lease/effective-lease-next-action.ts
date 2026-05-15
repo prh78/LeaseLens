@@ -11,6 +11,7 @@ export function extractedRowToNextActionInput(row: Tables<"extracted_data">): Ex
     break_dates: row.break_dates,
     break_clause_status: row.break_clause_status,
     notice_period_days: row.notice_period_days,
+    notice_period_spec: row.notice_period_spec,
     rent_review_dates: row.rent_review_dates,
     ambiguous_language: row.ambiguous_language,
     manual_review_recommended: row.manual_review_recommended,

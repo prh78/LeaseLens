@@ -338,7 +338,7 @@ export function LeaseBreakClausePanel({ leaseId, extracted, leaseJurisdiction }:
     parseNoticePeriodSpec(extracted.notice_period_spec),
   );
   const dates = breakDatesFromExtracted(extracted.break_dates);
-  const noticeDays = extracted.notice_period_days;
+  const noticeDays = noticeResolved.days;
   const [entryMap, setEntryMap] = useState(() => parseBreakClauseEntryMap(extracted.break_clause_status));
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
