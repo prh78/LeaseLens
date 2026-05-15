@@ -5,6 +5,7 @@ import { Fragment, useCallback, useState, type KeyboardEvent, type MouseEvent } 
 import { useRouter } from "next/navigation";
 
 import { LeaseExtractionProgress } from "@/components/dashboard/lease-extraction-progress";
+import { useDisplayLocale } from "@/components/providers/display-locale-provider";
 import type { DashboardLeaseRow, DashboardUpcomingActionItem } from "@/lib/dashboard/types";
 import { formatIsoDate } from "@/lib/lease/lease-detail";
 import type { LeaseTermStatus } from "@/lib/lease/lease-term-status";
@@ -95,6 +96,7 @@ type LeasePortfolioTableProps = Readonly<{
 
 export function LeasePortfolioTable({ leases, noMatchesFromFilters, onClearFilters }: LeasePortfolioTableProps) {
   const router = useRouter();
+  const displayLocale = useDisplayLocale();
   const [expandedLeaseId, setExpandedLeaseId] = useState<string | null>(null);
 
   const toggleActions = useCallback((leaseId: string) => {
@@ -167,7 +169,7 @@ export function LeasePortfolioTable({ leases, noMatchesFromFilters, onClearFilte
                 const term = termStyles[lease.termStatus];
                 const verification = verificationStyles[lease.reviewStatus];
                 const isExpired = lease.termStatus === "expired";
-                const expiryLabel = formatIsoDate(lease.expiryDate);
+                const expiryLabel = formatIsoDate(lease.expiryDate, displayLocale);
 
                 const go = () => {
                   router.push(href);

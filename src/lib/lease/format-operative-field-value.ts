@@ -6,8 +6,14 @@ import {
   parseBreakClauseEntryMap,
   tenancyEndFromServedNotice,
 } from "@/lib/lease/break-clause-status";
-import { formatIsoDate } from "@/lib/lease/lease-detail";
+import { DEFAULT_DISPLAY_LOCALE, formatAppDate } from "@/lib/lease/format-app-date";
+import { formatNoticePeriodLines } from "@/lib/lease/jurisdiction/format-notice-period-lines";
 import type { Tables } from "@/lib/supabase/database.types";
+
+export type FormatOperativeOptions = Readonly<{
+  locale?: string;
+  leaseJurisdiction?: string;
+}>;
 
 /** Field keys rendered under "Current operative terms" (same groupings as the lease UI). */
 export const OPERATIVE_TERMS_CRITICAL_FIELDS = [
@@ -28,17 +34,23 @@ export const OPERATIVE_TERMS_OBLIGATION_FIELDS = [
 
 export const OPERATIVE_TERMS_OTHER_FIELDS = ["conditional_break_clause"] as const;
 
-export function formatOperativeFieldLines(field: string, extracted: Tables<"extracted_data">): string[] {
+export function formatOperativeFieldLines(
+  field: string,
+  extracted: Tables<"extracted_data">,
+  options: FormatOperativeOptions = {},
+): string[] {
+  const locale = options.locale ?? DEFAULT_DISPLAY_LOCALE;
+
   switch (field) {
     case "term_commencement_date":
     case "rent_commencement_date":
     case "expiry_date": {
       if (field === "expiry_date") {
         const effective = effectiveExpiryDate(extracted);
-        const f = formatIsoDate(effective);
+        const f = formatAppDate(effective, locale);
         const lines: string[] = [f ? f : "—"];
         if (isExpiryOverriddenByServedNotice(extracted)) {
-          const contractual = formatIsoDate(extracted.expiry_date);
+          const contractual = formatAppDate(extracted.expiry_date, locale);
           if (contractual) {
             lines.push(`Contractual expiry in lease: ${contractual}`);
           }
@@ -50,7 +62,7 @@ export function formatOperativeFieldLines(field: string, extracted: Tables<"extr
         field === "term_commencement_date"
           ? extracted.term_commencement_date
           : extracted.rent_commencement_date;
-      const f = formatIsoDate(v);
+      const f = formatAppDate(v, locale);
       return [f ? f : "—"];
     }
     case "break_dates": {
@@ -58,7 +70,7 @@ export function formatOperativeFieldLines(field: string, extracted: Tables<"extr
       const entryMap = parseBreakClauseEntryMap(extracted.break_clause_status);
       const lines = arr
         .map((d) => {
-          const fd = formatIsoDate(d);
+          const fd = formatAppDate(d, locale);
           if (!fd) {
             return null;
           }
@@ -66,12 +78,13 @@ export function formatOperativeFieldLines(field: string, extracted: Tables<"extr
           const st = entry.status;
           let line = `${fd} (${BREAK_CLAUSE_STATUS_LABEL[st]})`;
           if (st === "served" && entry.served) {
-            const servedLabel = formatIsoDate(entry.served.notice_served_date) ?? entry.served.notice_served_date;
+            const servedLabel =
+              formatAppDate(entry.served.notice_served_date, locale) ?? entry.served.notice_served_date;
             const end = tenancyEndFromServedNotice(
               entry.served.notice_served_date,
               extracted.notice_period_days,
             );
-            const endLabel = end ? formatIsoDate(end) : null;
+            const endLabel = end ? formatAppDate(end, locale) : null;
             line += ` — notice served ${servedLabel}`;
             if (endLabel) {
               line += `, tenancy ends ${endLabel}`;
@@ -82,16 +95,11 @@ export function formatOperativeFieldLines(field: string, extracted: Tables<"extr
         .filter((x): x is string => Boolean(x));
       return lines.length ? lines : ["—"];
     }
-    case "notice_period_days": {
-      const n = extracted.notice_period_days;
-      if (n == null) {
-        return ["—"];
-      }
-      return [`${n} day${n === 1 ? "" : "s"}`];
-    }
+    case "notice_period_days":
+      return formatNoticePeriodLines(extracted, locale);
     case "rent_review_dates": {
       const arr = jsonStringArray(extracted.rent_review_dates);
-      const lines = arr.map((d) => formatIsoDate(d)).filter((x): x is string => Boolean(x));
+      const lines = arr.map((d) => formatAppDate(d, locale)).filter((x): x is string => Boolean(x));
       return lines.length ? lines : ["—"];
     }
     case "repairing_obligation": {
@@ -127,8 +135,12 @@ export function formatOperativeFieldLines(field: string, extracted: Tables<"extr
   }
 }
 
-export function formatOperativeFieldPlain(field: string, extracted: Tables<"extracted_data">): string {
-  const lines = formatOperativeFieldLines(field, extracted);
+export function formatOperativeFieldPlain(
+  field: string,
+  extracted: Tables<"extracted_data">,
+  options: FormatOperativeOptions = {},
+): string {
+  const lines = formatOperativeFieldLines(field, extracted, options);
   if (lines.length === 1) {
     return lines[0] ?? "—";
   }

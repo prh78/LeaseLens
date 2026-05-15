@@ -66,17 +66,17 @@ function allActionResultsForRow(row: LeaseWithExtracted, nextFallback: LeaseNext
   return [nextFallback];
 }
 
-function resultToUpcomingItem(r: LeaseNextActionResult): DashboardUpcomingActionItem {
+function resultToUpcomingItem(r: LeaseNextActionResult, displayLocale: string): DashboardUpcomingActionItem {
   return {
     label: nextActionDisplayLabel(r),
-    dueLabel: formatNextActionDueLabel(r),
+    dueLabel: formatNextActionDueLabel(r, displayLocale),
     severity: severityFromUrgency(r.urgency_level),
     actionDate: r.action_date,
     daysRemaining: r.days_remaining,
   };
 }
 
-export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardData {
+export function buildDashboardData(leaseRows: LeaseWithExtracted[], displayLocale: string): DashboardData {
   const pendingReviews = leaseRows.filter((row) => row.review_status === "needs_review").length;
 
   const metrics: DashboardMetrics = {
@@ -119,7 +119,7 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
 
     const next = effectiveLeaseNextAction(row, extracted);
     const allActionsInPriorityOrder: DashboardUpcomingActionItem[] = next
-      ? allActionResultsForRow(row, next).map(resultToUpcomingItem)
+      ? allActionResultsForRow(row, next).map((r) => resultToUpcomingItem(r, displayLocale))
       : [];
 
     return {

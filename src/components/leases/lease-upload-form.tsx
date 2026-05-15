@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { AuthMessage } from "@/components/auth/auth-message";
+import { useDisplayLocale } from "@/components/providers/display-locale-provider";
 import {
   LEASE_DOCUMENT_TYPES,
   LEASE_DOCUMENT_TYPE_LABEL,
@@ -34,10 +35,10 @@ type LeaseRow = Readonly<{
   expiry_date: string | null;
 }>;
 
-function leasePickerOptionLabel(l: LeaseRow): string {
+function leasePickerOptionLabel(l: LeaseRow, locale: string): string {
   const name = l.property_name;
   if (l.term_status === "expired") {
-    const formatted = formatIsoDate(l.expiry_date);
+    const formatted = formatIsoDate(l.expiry_date, locale);
     return formatted ? `${name} (Expired · ${formatted})` : `${name} (Expired)`;
   }
   if (l.term_status === "unknown") {
@@ -48,6 +49,7 @@ function leasePickerOptionLabel(l: LeaseRow): string {
 
 export function LeaseUploadForm() {
   const router = useRouter();
+  const displayLocale = useDisplayLocale();
   const [documentType, setDocumentType] = useState<LeaseDocumentType>("primary_lease");
   const [propertyName, setPropertyName] = useState("");
   const [propertyType, setPropertyType] = useState<string>(PROPERTY_TYPES[0].value);
@@ -459,7 +461,7 @@ export function LeaseUploadForm() {
                 .filter((l) => l.extraction_status === "complete")
                 .map((l) => (
                   <option key={l.id} value={l.id}>
-                    {leasePickerOptionLabel(l)}
+                    {leasePickerOptionLabel(l, displayLocale)}
                   </option>
                 ))}
             </select>

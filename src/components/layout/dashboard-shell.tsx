@@ -1,14 +1,17 @@
 import { DashboardPortfolioFiltersProvider } from "@/components/dashboard/dashboard-portfolio-filters-context";
 import { DashboardTopNav } from "@/components/layout/dashboard-top-nav";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { DisplayLocaleProvider } from "@/components/providers/display-locale-provider";
 
 type DashboardShellProps = Readonly<{
   children: React.ReactNode;
   userEmail?: string | null;
+  displayLocale: string;
 }>;
 
-export function DashboardShell({ children, userEmail }: DashboardShellProps) {
+export function DashboardShell({ children, userEmail, displayLocale }: DashboardShellProps) {
   return (
+    <DisplayLocaleProvider locale={displayLocale}>
     <DashboardPortfolioFiltersProvider>
       <div className="flex min-h-screen flex-col bg-slate-100/80">
         <DashboardTopNav userEmail={userEmail} />
@@ -30,5 +33,6 @@ export function DashboardShell({ children, userEmail }: DashboardShellProps) {
         </div>
       </div>
     </DashboardPortfolioFiltersProvider>
+    </DisplayLocaleProvider>
   );
 }

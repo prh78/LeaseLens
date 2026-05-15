@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { fetchDisplayLocaleForUser } from "@/lib/user/fetch-display-locale";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type DashboardGroupLayoutProps = Readonly<{
@@ -17,5 +18,11 @@ export default async function DashboardGroupLayout({ children }: DashboardGroupL
     redirect("/login");
   }
 
-  return <DashboardShell userEmail={user.email}>{children}</DashboardShell>;
+  const displayLocale = await fetchDisplayLocaleForUser(supabase, user.id);
+
+  return (
+    <DashboardShell userEmail={user.email} displayLocale={displayLocale}>
+      {children}
+    </DashboardShell>
+  );
 }

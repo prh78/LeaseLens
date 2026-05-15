@@ -1,4 +1,6 @@
+import type { BreakClauseEvidenceType } from "@/lib/lease/break-clause-status";
 import type { LeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
+import { LEASE_JURISDICTION_LABEL } from "@/lib/lease/jurisdiction/types";
 
 /** UI terminology by region (break panel, exports, next-action copy). */
 export type JurisdictionLabelPack = Readonly<{
@@ -55,4 +57,21 @@ const PACKS: Record<LeaseJurisdiction, JurisdictionLabelPack> = {
 
 export function labelsForJurisdiction(jurisdiction: LeaseJurisdiction): JurisdictionLabelPack {
   return PACKS[jurisdiction];
+}
+
+export function jurisdictionDisplayLabel(jurisdiction: string): string {
+  if (jurisdiction in LEASE_JURISDICTION_LABEL) {
+    return LEASE_JURISDICTION_LABEL[jurisdiction as LeaseJurisdiction];
+  }
+  return LEASE_JURISDICTION_LABEL.other;
+}
+
+export function evidenceLabelsForJurisdiction(
+  jurisdiction: LeaseJurisdiction,
+): Record<BreakClauseEvidenceType, string> {
+  const pack = labelsForJurisdiction(jurisdiction);
+  return {
+    deed_of_surrender: pack.deedOfSurrender,
+    landlord_confirmation: pack.landlordConfirmation,
+  };
 }

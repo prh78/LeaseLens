@@ -1,3 +1,4 @@
+import { DEFAULT_DISPLAY_LOCALE, formatAppDate } from "@/lib/lease/format-app-date";
 import type { Json } from "@/lib/supabase/database.types";
 
 export function jsonStringArray(value: Json): string[] {
@@ -20,19 +21,9 @@ export function jsonSnippetMap(value: Json): Record<string, string> {
   return out;
 }
 
-export function formatIsoDate(iso: string | null | undefined): string | null {
-  if (!iso || typeof iso !== "string") {
-    return null;
-  }
-  const d = new Date(`${iso}T12:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) {
-    return iso;
-  }
-  return d.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+/** @param locale BCP 47 display locale (defaults to en-GB). */
+export function formatIsoDate(iso: string | null | undefined, locale: string = DEFAULT_DISPLAY_LOCALE): string | null {
+  return formatAppDate(iso, locale);
 }
 
 export function humanizeKey(key: string): string {

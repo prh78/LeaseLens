@@ -1,4 +1,5 @@
 import { buildDashboardData } from "@/lib/dashboard/build-dashboard-data";
+import { DEFAULT_DISPLAY_LOCALE } from "@/lib/lease/format-app-date";
 import { csvRow, withUtf8Bom } from "@/lib/export/csv-escape";
 import type { LeaseWithExtractedForExport } from "@/lib/export/fetch-leases-for-export";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
@@ -27,7 +28,7 @@ function nextActionTypeLabel(t: LeaseNextActionType | null): string {
 }
 
 export function buildPortfolioRegisterCsv(leaseRows: LeaseWithExtractedForExport[]): string {
-  const data = buildDashboardData(leaseRows);
+  const data = buildDashboardData(leaseRows, DEFAULT_DISPLAY_LOCALE);
   const header = csvRow([
     "lease_id",
     "property_name",

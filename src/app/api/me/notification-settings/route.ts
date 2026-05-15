@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { normalizeDisplayLocale } from "@/lib/lease/format-app-date";
 import {
   isEmailDigestFrequency,
   mergeNotificationSettingsFromRow,
@@ -15,6 +16,7 @@ type PatchBody = Readonly<{
   alertCategories?: unknown;
   reminderHorizonsDays?: unknown;
   emailDigestFrequency?: unknown;
+  displayLocale?: unknown;
 }>;
 
 export async function GET() {
@@ -93,6 +95,14 @@ export async function PATCH(request: Request) {
     emailDigestFrequency = body.emailDigestFrequency;
   }
 
+  let displayLocale = current.displayLocale;
+  if (body.displayLocale != null) {
+    if (typeof body.displayLocale !== "string") {
+      return NextResponse.json({ error: "displayLocale must be a string." }, { status: 400 });
+    }
+    displayLocale = normalizeDisplayLocale(body.displayLocale);
+  }
+
   const alert_categories = alertCategories as unknown as Json;
 
   const { data: saved, error: upsertErr } = await supabase
@@ -103,6 +113,7 @@ export async function PATCH(request: Request) {
         alert_categories,
         reminder_horizons_days: reminderHorizonsDays,
         email_digest_frequency: emailDigestFrequency,
+        display_locale: displayLocale,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },

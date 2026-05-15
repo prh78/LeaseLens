@@ -5,6 +5,8 @@ import { LeaseStructuredAnalyseKickoff } from "@/components/leases/lease-structu
 import { effectiveLeaseNextAction } from "@/lib/lease/effective-lease-next-action";
 import { needsStructuredAnalyse } from "@/lib/lease/needs-structured-analyse";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { DEFAULT_DISPLAY_LOCALE } from "@/lib/lease/format-app-date";
+import { fetchDisplayLocaleForUser } from "@/lib/user/fetch-display-locale";
 
 const LEASE_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -21,6 +23,9 @@ export default async function LeaseDetailPage({ params }: LeaseDetailPageProps) 
   }
 
   const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: lease, error: leaseError } = await supabase.from("leases").select("*").eq("id", id).maybeSingle();
 
@@ -55,6 +60,7 @@ export default async function LeaseDetailPage({ params }: LeaseDetailPageProps) 
 
   const kickStructured = needsStructuredAnalyse(lease.extraction_status, extracted);
   const nextAction = effectiveLeaseNextAction(lease, extracted);
+  const displayLocale = user ? await fetchDisplayLocaleForUser(supabase, user.id) : DEFAULT_DISPLAY_LOCALE;
 
   return (
     <>
@@ -64,6 +70,7 @@ export default async function LeaseDetailPage({ params }: LeaseDetailPageProps) 
         extracted={extracted}
         nextAction={nextAction}
         documents={leaseDocuments ?? []}
+        displayLocale={displayLocale}
       />
     </>
   );

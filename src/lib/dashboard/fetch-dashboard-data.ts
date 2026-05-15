@@ -1,4 +1,5 @@
 import { buildDashboardData } from "@/lib/dashboard/build-dashboard-data";
+import { fetchDisplayLocaleForUser } from "@/lib/user/fetch-display-locale";
 import type { DashboardData } from "@/lib/dashboard/types";
 import type { Tables } from "@/lib/supabase/database.types";
 import type { LeaseLensServerClient } from "@/lib/supabase/server";
@@ -51,5 +52,6 @@ export async function fetchDashboardData(
   }
 
   const leases = (leaseRows ?? []) as LeaseWithExtracted[];
-  return buildDashboardData(leases);
+  const displayLocale = await fetchDisplayLocaleForUser(supabase, userId);
+  return buildDashboardData(leases, displayLocale);
 }

@@ -47,6 +47,7 @@ type LeaseDetailViewProps = Readonly<{
   extracted: Tables<"extracted_data"> | null;
   nextAction: LeaseNextActionResult | null;
   documents: readonly Tables<"lease_documents">[];
+  displayLocale: string;
 }>;
 
 function propertyTypeLabel(value: string): string {
@@ -131,7 +132,7 @@ function SummaryPdfGlyph() {
   );
 }
 
-export function LeaseDetailView({ lease, extracted, nextAction, documents }: LeaseDetailViewProps) {
+export function LeaseDetailView({ lease, extracted, nextAction, documents, displayLocale }: LeaseDetailViewProps) {
   const risk = overallRiskDisplay(lease.overall_risk);
   const statusPill = extractionStatusPill(lease.extraction_status);
   const verificationPill = verificationStatusPill(lease.review_status);
@@ -381,7 +382,7 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
                 <p className="text-lg font-semibold text-slate-900">
                   {nextActionDisplayLabel(nextAction)}
                 </p>
-                <p className="text-sm text-slate-600">{formatNextActionDueLabel(nextAction)}</p>
+                <p className="text-sm text-slate-600">{formatNextActionDueLabel(nextAction, displayLocale)}</p>
                 {nextAction.action_date ? (
                   <p className="text-xs font-mono tabular-nums text-slate-500">Date: {nextAction.action_date}</p>
                 ) : null}
@@ -421,7 +422,13 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
       </LeaseDetailSection>
 
       {extracted ? (
-        <LeaseOperativeTerms leaseId={lease.id} extracted={extracted} provenance={provenance} />
+        <LeaseOperativeTerms
+          leaseId={lease.id}
+          leaseJurisdiction={lease.lease_jurisdiction}
+          displayLocale={displayLocale}
+          extracted={extracted}
+          provenance={provenance}
+        />
       ) : (
         <LeaseDetailSection
           title="Operative terms & extraction"
@@ -431,7 +438,9 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         </LeaseDetailSection>
       )}
 
-      {hasSupplementalDocuments ? <LeaseChangeHistory entries={changeHistory} /> : null}
+      {hasSupplementalDocuments ? (
+        <LeaseChangeHistory entries={changeHistory} displayLocale={displayLocale} />
+      ) : null}
 
       <LeaseDocumentConflicts conflicts={documentConflicts} />
 

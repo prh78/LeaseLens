@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AuthMessage } from "@/components/auth/auth-message";
+import { useDisplayLocale } from "@/components/providers/display-locale-provider";
+import { formatAppDate } from "@/lib/lease/format-app-date";
 import { LeaseDetailSection } from "@/components/leases/lease-detail-section";
 import { LEASE_DOCUMENT_TYPE_LABEL } from "@/lib/lease/lease-document-types";
 import { postLeaseAnalyse } from "@/lib/lease/post-lease-analyse";
@@ -24,6 +26,7 @@ export function LeaseManagementPanel({
   extractionStatus,
 }: LeaseManagementPanelProps) {
   const router = useRouter();
+  const displayLocale = useDisplayLocale();
   const [panelOpen, setPanelOpen] = useState(false);
   const [name, setName] = useState(initialPropertyName);
   const [nameDirty, setNameDirty] = useState(false);
@@ -288,7 +291,7 @@ export function LeaseManagementPanel({
               {orderedDocuments.map((doc) => {
                 const label =
                   doc.display_name?.trim() ||
-                  `${LEASE_DOCUMENT_TYPE_LABEL[doc.document_type]} · ${new Date(doc.upload_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`;
+                  `${LEASE_DOCUMENT_TYPE_LABEL[doc.document_type]} · ${formatAppDate(doc.upload_date.slice(0, 10), displayLocale) ?? doc.upload_date}`;
                 const isPrimary = doc.document_type === "primary_lease";
                 const deleting = deletingDocId === doc.id;
 

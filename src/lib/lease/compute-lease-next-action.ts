@@ -6,7 +6,8 @@ import {
   projectedTenancyEndIfNoticeServedToday,
   statusForBreakDate,
 } from "@/lib/lease/break-clause-status";
-import { formatIsoDate, jsonStringArray } from "@/lib/lease/lease-detail";
+import { DEFAULT_DISPLAY_LOCALE, formatAppDate } from "@/lib/lease/format-app-date";
+import { jsonStringArray } from "@/lib/lease/lease-detail";
 import type { Json, LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
 
 export type { LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
@@ -140,9 +141,12 @@ export function breakWindowOpensIso(breakIso: string, noticePeriodDays: number |
 }
 
 /** Portfolio / detail copy when a break is a decision reminder (no due date). */
-export function formatBreakAvailableFromLabel(availableFromIso: string): string {
+export function formatBreakAvailableFromLabel(
+  availableFromIso: string,
+  locale: string = DEFAULT_DISPLAY_LOCALE,
+): string {
   const days = calendarDaysRemaining(availableFromIso);
-  const label = formatIsoDate(availableFromIso) ?? availableFromIso;
+  const label = formatAppDate(availableFromIso, locale) ?? availableFromIso;
   if (days === null) {
     return `Available from ${label}`;
   }

@@ -2,23 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isAlertEventKind } from "@/lib/alerts/constants";
 import { leaseDetailUrl, portfolioDashboardUrl, sendLeaseAlertEmail } from "@/lib/alerts/send-lease-alert-email";
+import { formatAppDateLong } from "@/lib/lease/format-app-date";
+import { fetchDisplayLocaleForUser } from "@/lib/user/fetch-display-locale";
 import type { Database } from "@/lib/supabase/database.types";
 
 type Admin = SupabaseClient<Database>;
-
-function formatDeadlineLabel(eventDateIso: string): string {
-  const d = new Date(`${eventDateIso}T12:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) {
-    return eventDateIso;
-  }
-  return d.toLocaleDateString("en-GB", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 export type ProcessDueAlertsSummary = Readonly<{
   scanned: number;
@@ -49,6 +37,7 @@ export async function processDueAlerts(admin: Admin, options?: { limit?: number 
   let sent = 0;
   let failed = 0;
   let skippedNoEmail = 0;
+  const localeByUserId = new Map<string, string>();
 
   for (const row of due) {
     if (!row.event_kind || !row.event_date || row.horizon_days == null) {
@@ -82,13 +71,20 @@ export async function processDueAlerts(admin: Admin, options?: { limit?: number 
       continue;
     }
 
+    let displayLocale = localeByUserId.get(lease.user_id);
+    if (!displayLocale) {
+      displayLocale = await fetchDisplayLocaleForUser(admin, lease.user_id);
+      localeByUserId.set(lease.user_id, displayLocale);
+    }
+
     const kind = row.event_kind;
     const payload = {
       propertyName: lease.property_name,
       eventKind: kind,
       horizonDays: row.horizon_days,
       eventDateIso: row.event_date,
-      actionDeadlineLabel: formatDeadlineLabel(row.event_date),
+      actionDeadlineLabel: formatAppDateLong(row.event_date, displayLocale) ?? row.event_date,
+      displayLocale,
       dashboardUrl: portfolioDashboardUrl(),
       leaseDetailUrl: leaseDetailUrl(lease.id),
     };

@@ -2,17 +2,22 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { useDisplayLocale } from "@/components/providers/display-locale-provider";
 import { LeaseDetailSection } from "@/components/leases/lease-detail-section";
+import { normalizeDisplayLocale } from "@/lib/lease/format-app-date";
 import { LEASE_DOCUMENT_TYPE_LABEL } from "@/lib/lease/lease-document-types";
 import type { LeaseDocumentProcessingStatus, Tables } from "@/lib/supabase/database.types";
 
 /** e.g. "Uploaded 14 May, 16.57" */
-function formatUploadedAt(iso: string): string {
+function formatUploadedAt(iso: string, locale: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) {
     return "Uploaded —";
   }
-  const datePart = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const datePart = d.toLocaleDateString(normalizeDisplayLocale(locale), {
+    day: "numeric",
+    month: "short",
+  });
   const hours = String(d.getHours()).padStart(2, "0");
   const minutes = String(d.getMinutes()).padStart(2, "0");
   return `Uploaded ${datePart}, ${hours}.${minutes}`;
@@ -44,6 +49,7 @@ type LeaseDocumentTimelineProps = Readonly<{
 }>;
 
 export function LeaseDocumentTimeline({ leaseId, documents }: LeaseDocumentTimelineProps) {
+  const displayLocale = useDisplayLocale();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const ordered = useMemo(() => {
@@ -79,7 +85,9 @@ export function LeaseDocumentTimeline({ leaseId, documents }: LeaseDocumentTimel
                   >
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-sm font-semibold text-slate-900">{title}</p>
-                      <p className="text-xs tabular-nums text-slate-500">{formatUploadedAt(doc.upload_date)}</p>
+                      <p className="text-xs tabular-nums text-slate-500">
+                        {formatUploadedAt(doc.upload_date, displayLocale)}
+                      </p>
                     </div>
                     <span
                       className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${st.className}`}

@@ -1,6 +1,6 @@
 # International lease sketch (jurisdiction + notice units)
 
-**Status:** Phase 1 implemented. Phase 2 (UI labels + locale) not yet wired.
+**Status:** Phase 1 and Phase 2 implemented.
 
 ## Rollout phases
 
@@ -11,11 +11,11 @@
 4. `openai-analyse.ts`: `buildAnalyseSystemPrompt(lease_jurisdiction)`.
 5. Analyse route: persists new columns; `resolveNoticePeriodForStorage()` sets `notice_period_days` when confident.
 
-### Phase 2 — UI labels + locale
-1. `labelsForJurisdiction(lease.lease_jurisdiction)` in break panel and exports.
-2. `display_locale` on user settings → single `formatAppDate(iso, locale)` helper.
-3. Operative terms: show `governing_law`, `premises_country`, `rent_currency` when present.
-4. Notice line: show `source_text` when conversion is not confident.
+### Phase 2 — UI labels + locale (done)
+1. `labelsForJurisdiction(lease.lease_jurisdiction)` in break panel and PDF exports.
+2. `display_locale` on user settings → `formatAppDate` / `formatAppDateTime` / `formatAppDateLong`.
+3. Operative terms: “Lease context” block for `governing_law`, `premises_country`, `rent_currency`, region pack.
+4. Notice line: amber banner with `source_text` when conversion is not confident.
 
 ### Phase 3 — Rules (optional)
 1. Jurisdiction-specific break math flags (e.g. US early termination vs UK break).
@@ -32,7 +32,9 @@
 | `upload` / lease create | Set `lease_jurisdiction` |
 | `break-clause-status.ts` / compute | Use `effectiveNoticePeriodDays()` |
 | `lease-break-clause-panel.tsx` | `labelsForJurisdiction()` |
-| `format-next-action-due-label.ts` | Optional locale param |
+| `format-next-action-due-label.ts` | Locale param |
+| `notification-settings-form.tsx` | Display locale selector |
+| `lease-operative-terms.tsx` | Lease context block + locale options |
 
 ## API sketch (lease PATCH)
 

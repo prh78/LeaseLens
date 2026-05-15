@@ -1,4 +1,5 @@
 import { LeaseDetailSection } from "@/components/leases/lease-detail-section";
+import { formatAppDate } from "@/lib/lease/format-app-date";
 import type { ChangeHistoryEntry } from "@/lib/lease/lease-detail-audit";
 import { operativeFieldLabel } from "@/lib/lease/lease-field-labels";
 
@@ -15,9 +16,10 @@ function preview(v: unknown): string {
 
 type LeaseChangeHistoryProps = Readonly<{
   entries: readonly ChangeHistoryEntry[];
+  displayLocale: string;
 }>;
 
-export function LeaseChangeHistory({ entries }: LeaseChangeHistoryProps) {
+export function LeaseChangeHistory({ entries, displayLocale }: LeaseChangeHistoryProps) {
   if (entries.length === 0) {
     return null;
   }
@@ -46,11 +48,7 @@ export function LeaseChangeHistory({ entries }: LeaseChangeHistoryProps) {
                 <>
                   {" "}
                   · Effective{" "}
-                  {new Date(`${e.effective_date}T12:00:00Z`).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                  {formatAppDate(e.effective_date, displayLocale)}
                 </>
               ) : null}
             </p>

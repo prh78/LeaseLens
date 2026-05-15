@@ -5,11 +5,13 @@ import { useState } from "react";
 
 import type { AlertEventKind } from "@/lib/alerts/constants";
 import { ALERT_EVENT_KINDS } from "@/lib/alerts/constants";
+import { DISPLAY_LOCALE_OPTIONS } from "@/lib/lease/format-app-date";
 import {
   EMAIL_DIGEST_OPTIONS,
   REMINDER_HORIZON_OPTIONS,
   type AlertCategoriesState,
 } from "@/lib/notifications/notification-settings";
+import { formatAppDateTime } from "@/lib/lease/format-app-date";
 import type { EmailDigestFrequency } from "@/lib/supabase/database.types";
 
 const CATEGORY_LABEL: Record<AlertEventKind, string> = {
@@ -22,6 +24,7 @@ export type NotificationSettingsFormInitial = Readonly<{
   alertCategories: AlertCategoriesState;
   reminderHorizonsDays: readonly number[];
   emailDigestFrequency: EmailDigestFrequency;
+  displayLocale: string;
   updatedAt: string | null;
 }>;
 
@@ -34,6 +37,7 @@ export function NotificationSettingsForm({ initial }: NotificationSettingsFormPr
   const [alertCategories, setAlertCategories] = useState<AlertCategoriesState>({ ...initial.alertCategories });
   const [horizons, setHorizons] = useState<number[]>(() => [...initial.reminderHorizonsDays]);
   const [digest, setDigest] = useState<EmailDigestFrequency>(initial.emailDigestFrequency);
+  const [displayLocale, setDisplayLocale] = useState(initial.displayLocale);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(initial.updatedAt);
@@ -63,6 +67,7 @@ export function NotificationSettingsForm({ initial }: NotificationSettingsFormPr
           alertCategories,
           reminderHorizonsDays: horizons,
           emailDigestFrequency: digest,
+          displayLocale,
         }),
       });
       const payload = (await res.json()) as { error?: string; updatedAt?: string | null };
@@ -143,6 +148,24 @@ export function NotificationSettingsForm({ initial }: NotificationSettingsFormPr
       </section>
 
       <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-900">Date display format</h2>
+        <p className="text-sm text-slate-600">
+          How dates appear across your dashboard, lease detail, and exports. Does not change how dates are stored.
+        </p>
+        <select
+          value={displayLocale}
+          onChange={(e) => setDisplayLocale(e.target.value)}
+          className="max-w-md rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+        >
+          {DISPLAY_LOCALE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">Email digest frequency</h2>
         <p className="text-sm text-slate-600">
           Portfolio digest cadence for summary emails (delivery is configured with your deployment). Per-lease instant
@@ -178,10 +201,7 @@ export function NotificationSettingsForm({ initial }: NotificationSettingsFormPr
         {savedAt ? (
           <p className="text-xs text-slate-500">
             Last saved{" "}
-            {new Date(savedAt).toLocaleString("en-GB", {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
+            {formatAppDateTime(savedAt, displayLocale) ?? savedAt}
           </p>
         ) : null}
       </div>

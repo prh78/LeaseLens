@@ -1,4 +1,5 @@
 import type { AlertEventKind } from "@/lib/alerts/constants";
+import { DEFAULT_DISPLAY_LOCALE, formatAppDateLong } from "@/lib/lease/format-app-date";
 
 export type LeaseAlertEmailPayload = Readonly<{
   propertyName: string;
@@ -12,6 +13,8 @@ export type LeaseAlertEmailPayload = Readonly<{
   dashboardUrl: string;
   /** Direct link to this lease */
   leaseDetailUrl: string;
+  /** BCP 47 locale for date formatting in the email body */
+  displayLocale?: string;
 }>;
 
 function eventTypeLabel(kind: AlertEventKind): string {
@@ -32,28 +35,19 @@ function subjectLine(payload: LeaseAlertEmailPayload): string {
   return `${payload.propertyName} — ${type} in ${payload.horizonDays} days`;
 }
 
-function formatLongDate(iso: string): string {
-  const d = new Date(`${iso}T12:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) {
-    return iso;
-  }
-  return d.toLocaleDateString("en-GB", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+function formatLongDate(iso: string, locale: string): string {
+  return formatAppDateLong(iso, locale) ?? iso;
 }
 
 export function buildLeaseAlertPlainText(payload: LeaseAlertEmailPayload): string {
+  const locale = payload.displayLocale ?? DEFAULT_DISPLAY_LOCALE;
   const type = eventTypeLabel(payload.eventKind);
   const lines = [
     `LeaseLens reminder`,
     ``,
     `Property: ${payload.propertyName}`,
     `Event: ${type}`,
-    `Milestone date: ${formatLongDate(payload.eventDateIso)}`,
+    `Milestone date: ${formatLongDate(payload.eventDateIso, locale)}`,
     `Reminder window: ${payload.horizonDays} days before that date`,
     `Action deadline: ${payload.actionDeadlineLabel}`,
     ``,
@@ -69,6 +63,7 @@ export function buildLeaseAlertPlainText(payload: LeaseAlertEmailPayload): strin
 }
 
 export function buildLeaseAlertHtml(payload: LeaseAlertEmailPayload): string {
+  const locale = payload.displayLocale ?? DEFAULT_DISPLAY_LOCALE;
   const type = eventTypeLabel(payload.eventKind);
   const escaped = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -104,7 +99,7 @@ export function buildLeaseAlertHtml(payload: LeaseAlertEmailPayload): string {
                 </tr>
                 <tr>
                   <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;">Milestone date</td>
-                  <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-weight:600;color:#0f172a;">${escaped(formatLongDate(payload.eventDateIso))}</td>
+                  <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-weight:600;color:#0f172a;">${escaped(formatLongDate(payload.eventDateIso, locale))}</td>
                 </tr>
                 <tr>
                   <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;">Reminder</td>

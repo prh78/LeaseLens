@@ -268,6 +268,7 @@ export type Database = {
           alert_categories: Json;
           reminder_horizons_days: number[];
           email_digest_frequency: EmailDigestFrequency;
+          display_locale: string;
           updated_at: string;
         };
         Insert: {
@@ -275,6 +276,7 @@ export type Database = {
           alert_categories?: Json;
           reminder_horizons_days?: number[];
           email_digest_frequency?: EmailDigestFrequency;
+          display_locale?: string;
           updated_at?: string;
         };
         Update: {
@@ -282,6 +284,7 @@ export type Database = {
           alert_categories?: Json;
           reminder_horizons_days?: number[];
           email_digest_frequency?: EmailDigestFrequency;
+          display_locale?: string;
           updated_at?: string;
         };
         Relationships: [];

@@ -10,8 +10,8 @@ import {
   operativeTermCardClass,
 } from "@/components/leases/operative-evidence-parts";
 import { snippetEvidenceForField } from "@/lib/lease/lease-detail-audit";
+import { useDisplayLocale } from "@/components/providers/display-locale-provider";
 import {
-  BREAK_CLAUSE_EVIDENCE_LABEL,
   BREAK_CLAUSE_EVIDENCE_TYPES,
   BREAK_CLAUSE_STATUS_LABEL,
   type BreakClauseEntry,
@@ -23,6 +23,10 @@ import {
   projectedTenancyEndIfNoticeServedToday,
   tenancyEndFromServedNotice,
 } from "@/lib/lease/break-clause-status";
+import { evidenceLabelsForJurisdiction, labelsForJurisdiction } from "@/lib/lease/jurisdiction/labels";
+import { effectiveNoticePeriodDays } from "@/lib/lease/jurisdiction/notice-period";
+import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
+import { isLeaseJurisdiction, type LeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
 import { breakWindowOpensIso } from "@/lib/lease/compute-lease-next-action";
 import {
   parseDateFieldConfidence,
@@ -36,6 +40,7 @@ import type { Json, Tables } from "@/lib/supabase/database.types";
 type LeaseBreakClausePanelProps = Readonly<{
   leaseId: string;
   extracted: Tables<"extracted_data">;
+  leaseJurisdiction: string;
 }>;
 
 const BREAK_FIELD = "break_dates";
@@ -82,6 +87,8 @@ type BreakOptionRowProps = Readonly<{
   tenancyEndLabel: string | null;
   projectedEndIfServedTodayLabel: string | null;
   noticePeriodDays: number | null;
+  labels: ReturnType<typeof labelsForJurisdiction>;
+  evidenceLabels: ReturnType<typeof evidenceLabelsForJurisdiction>;
   entry: BreakClauseEntry;
   busy: boolean;
   onPersist: (patch: BreakClauseEntryPatch) => void;
@@ -89,6 +96,7 @@ type BreakOptionRowProps = Readonly<{
   allMeta: Record<string, FieldExtractionMetaEntry>;
   globalConfidence: number | null | undefined;
   dateFieldConfidence: DateFieldConfidenceMap;
+  formatDate: (iso: string) => string;
 }>;
 
 function BreakOptionRow({
@@ -97,6 +105,8 @@ function BreakOptionRow({
   tenancyEndLabel,
   projectedEndIfServedTodayLabel,
   noticePeriodDays,
+  labels,
+  evidenceLabels,
   entry,
   busy,
   onPersist,
@@ -104,6 +114,7 @@ function BreakOptionRow({
   allMeta,
   globalConfidence,
   dateFieldConfidence,
+  formatDate,
 }: BreakOptionRowProps) {
   const { status } = entry;
   const band = fieldConfidenceBand(BREAK_FIELD, allMeta, globalConfidence, dateFieldConfidence);
@@ -145,7 +156,7 @@ function BreakOptionRow({
     <div className={operativeTermCardClass}>
       <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Break option</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{labels.breakOption}</p>
           <p className="mt-0.5 text-lg font-semibold leading-snug tabular-nums text-slate-900">{breakLabel}</p>
           {showAvailableFrom ? (
             <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -157,7 +168,7 @@ function BreakOptionRow({
             <div className="mt-1 space-y-1 text-[11px] leading-snug text-slate-500">
               {projectedEndIfServedTodayLabel ? (
                 <p>
-                  Projected tenancy end if notice served today:{" "}
+                  {labels.tenancyEnd} if notice served today:{" "}
                   <span className="font-medium tabular-nums text-slate-700">{projectedEndIfServedTodayLabel}</span>
                 </p>
               ) : null}
@@ -170,10 +181,10 @@ function BreakOptionRow({
           ) : null}
           {status === "served" && tenancyEndLabel ? (
             <p className="mt-1 text-[11px] leading-snug text-slate-500">
-              Tenancy ends{" "}
+              {labels.tenancyEnd}{" "}
               <span className="font-medium tabular-nums text-slate-700">{tenancyEndLabel}</span>
               {entry.served
-                ? ` (notice served ${formatIsoDate(entry.served.notice_served_date) ?? entry.served.notice_served_date})`
+                ? ` (notice served ${formatDate(entry.served.notice_served_date)})`
                 : null}
             </p>
           ) : null}
@@ -257,7 +268,7 @@ function BreakOptionRow({
                         onChange={() => setEvidenceType(t)}
                         className="mt-0.5"
                       />
-                      {BREAK_CLAUSE_EVIDENCE_LABEL[t]}
+                      {evidenceLabels[t]}
                     </label>
                   ))}
                 </div>
@@ -314,8 +325,18 @@ function BreakOptionRow({
   );
 }
 
-export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePanelProps) {
+export function LeaseBreakClausePanel({ leaseId, extracted, leaseJurisdiction }: LeaseBreakClausePanelProps) {
   const router = useRouter();
+  const displayLocale = useDisplayLocale();
+  const jurisdiction: LeaseJurisdiction = isLeaseJurisdiction(leaseJurisdiction)
+    ? leaseJurisdiction
+    : "uk";
+  const labels = labelsForJurisdiction(jurisdiction);
+  const evidenceLabels = evidenceLabelsForJurisdiction(jurisdiction);
+  const noticeResolved = effectiveNoticePeriodDays(
+    extracted.notice_period_days,
+    parseNoticePeriodSpec(extracted.notice_period_spec),
+  );
   const dates = breakDatesFromExtracted(extracted.break_dates);
   const noticeDays = extracted.notice_period_days;
   const [entryMap, setEntryMap] = useState(() => parseBreakClauseEntryMap(extracted.break_clause_status));
@@ -386,6 +407,9 @@ export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePa
     [leaseId, router],
   );
 
+  const formatDate = (iso: string) => formatIsoDate(iso, displayLocale) ?? iso;
+  const noticeSpec = parseNoticePeriodSpec(extracted.notice_period_spec);
+
   if (dates.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-200 bg-white/60 px-3 py-2.5 text-sm text-slate-600">
@@ -397,24 +421,27 @@ export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePa
   return (
     <div className="space-y-2">
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
+      {noticeResolved.warning ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-950">
+          {noticeResolved.warning}
+          {noticeSpec?.source_text ? ` Lease wording: “${noticeSpec.source_text}”` : null}
+        </p>
+      ) : null}
       {dates.map((iso) => {
-        const breakLabel = formatIsoDate(iso) ?? iso;
+        const breakLabel = formatDate(iso);
         const availableFromIso = breakWindowOpensIso(iso, noticeDays);
-        const availableFromLabel =
-          availableFromIso != null ? (formatIsoDate(availableFromIso) ?? availableFromIso) : "—";
+        const availableFromLabel = availableFromIso != null ? formatDate(availableFromIso) : "—";
         const entry = entryMap[iso] ?? { status: "available" as const, served: null };
         const tenancyEndIso =
           entry.status === "served" && entry.served
             ? tenancyEndFromServedNotice(entry.served.notice_served_date, noticeDays)
             : null;
-        const tenancyEndLabel =
-          tenancyEndIso != null ? (formatIsoDate(tenancyEndIso) ?? tenancyEndIso) : null;
+        const tenancyEndLabel = tenancyEndIso != null ? formatDate(tenancyEndIso) : null;
         const projectedEndIso =
           entry.status === "intend_to_exercise"
             ? projectedTenancyEndIfNoticeServedToday(noticeDays)
             : null;
-        const projectedEndIfServedTodayLabel =
-          projectedEndIso != null ? (formatIsoDate(projectedEndIso) ?? projectedEndIso) : null;
+        const projectedEndIfServedTodayLabel = projectedEndIso != null ? formatDate(projectedEndIso) : null;
 
         return (
           <BreakOptionRow
@@ -424,6 +451,9 @@ export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePa
             tenancyEndLabel={tenancyEndLabel}
             projectedEndIfServedTodayLabel={projectedEndIfServedTodayLabel}
             noticePeriodDays={noticeDays}
+            labels={labels}
+            evidenceLabels={evidenceLabels}
+            formatDate={formatDate}
             entry={entry}
             busy={saving === iso}
             onPersist={(patch) => void persist(iso, patch)}

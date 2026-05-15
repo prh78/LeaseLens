@@ -1,4 +1,5 @@
 import { ALERT_EVENT_KINDS, ALERT_HORIZONS_DAYS, type AlertEventKind } from "@/lib/alerts/constants";
+import { DEFAULT_DISPLAY_LOCALE, normalizeDisplayLocale } from "@/lib/lease/format-app-date";
 import type { EmailDigestFrequency, Json, Tables } from "@/lib/supabase/database.types";
 
 export type UserNotificationSettingsRow = Tables<"user_notification_settings">;
@@ -67,6 +68,7 @@ export function mergeNotificationSettingsFromRow(
   alertCategories: AlertCategoriesState;
   reminderHorizonsDays: number[];
   emailDigestFrequency: EmailDigestFrequency;
+  displayLocale: string;
   updatedAt: string | null;
 } {
   if (!row) {
@@ -74,6 +76,7 @@ export function mergeNotificationSettingsFromRow(
       alertCategories: { ...DEFAULT_CATEGORIES },
       reminderHorizonsDays: [...ALERT_HORIZONS_DAYS],
       emailDigestFrequency: DEFAULT_DIGEST,
+      displayLocale: DEFAULT_DISPLAY_LOCALE,
       updatedAt: null,
     };
   }
@@ -83,6 +86,7 @@ export function mergeNotificationSettingsFromRow(
     emailDigestFrequency: isEmailDigestFrequency(row.email_digest_frequency)
       ? row.email_digest_frequency
       : DEFAULT_DIGEST,
+    displayLocale: normalizeDisplayLocale(row.display_locale),
     updatedAt: row.updated_at,
   };
 }

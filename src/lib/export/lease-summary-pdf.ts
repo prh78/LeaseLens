@@ -1,6 +1,11 @@
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 
+import { formatAppDate, formatAppDateTime } from "@/lib/lease/format-app-date";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
+import { formatInternationalContextLines } from "@/lib/lease/jurisdiction/format-notice-period-lines";
+import { jurisdictionDisplayLabel } from "@/lib/lease/jurisdiction/labels";
+import { isLeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
+import type { FormatOperativeOptions } from "@/lib/lease/format-operative-field-value";
 import { nextActionDisplayLabel, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { confidenceBand, effectiveFieldConfidence, parseFieldExtractionMeta, parseDateFieldConfidence } from "@/lib/lease/field-extraction-meta";
 import {
@@ -190,11 +195,12 @@ function renderOperativeBlock(
   title: string,
   fields: readonly string[],
   extracted: Tables<"extracted_data">,
+  options: FormatOperativeOptions,
 ): void {
   w.heading(title);
   for (const field of fields) {
     const label = operativeFieldLabel(field);
-    const value = formatOperativeFieldPlain(field, extracted);
+    const value = formatOperativeFieldPlain(field, extracted, options);
     const conf = confidenceBandLabel(field, extracted);
     w.keyValue(`${label} (${conf})`, value);
   }
@@ -205,6 +211,7 @@ export async function buildLeaseSummaryPdfBytes(input: Readonly<{
   lease: Tables<"leases">;
   extracted: Tables<"extracted_data"> | null;
   nextAction: LeaseNextActionResult | null;
+  displayLocale: string;
 }>): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -212,12 +219,16 @@ export async function buildLeaseSummaryPdfBytes(input: Readonly<{
   const contentWidth = PAGE_W - MARGIN * 2;
   const w = new PdfWriter(pdfDoc, font, fontBold, contentWidth);
 
-  const { lease, extracted, nextAction } = input;
-  const uploadLabel = new Date(lease.upload_date).toLocaleDateString("en-GB", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  const { lease, extracted, nextAction, displayLocale } = input;
+  const formatOptions: FormatOperativeOptions = {
+    locale: displayLocale,
+    leaseJurisdiction: lease.lease_jurisdiction,
+  };
+  const jurisdiction = isLeaseJurisdiction(lease.lease_jurisdiction) ? lease.lease_jurisdiction : "uk";
+  const uploadLabel =
+    formatAppDate(lease.upload_date.slice(0, 10), displayLocale) ??
+    formatAppDateTime(lease.upload_date, displayLocale) ??
+    lease.upload_date;
 
   w.title("Lease summary report");
   w.paragraph(
@@ -238,7 +249,7 @@ export async function buildLeaseSummaryPdfBytes(input: Readonly<{
   w.heading("Next critical action");
   if (nextAction) {
     w.keyValue("Action", nextActionDisplayLabel(nextAction));
-    w.keyValue("Due", formatNextActionDueLabel(nextAction));
+    w.keyValue("Due", formatNextActionDueLabel(nextAction, displayLocale));
     w.keyValue("Action date", nextAction.action_date ?? "—");
     w.keyValue("Urgency", nextAction.urgency_level);
   } else {
@@ -261,9 +272,18 @@ export async function buildLeaseSummaryPdfBytes(input: Readonly<{
   if (!extracted) {
     w.paragraph("No extracted data available for this lease.");
   } else {
-    renderOperativeBlock(w, "Critical dates", OPERATIVE_TERMS_CRITICAL_FIELDS, extracted);
-    renderOperativeBlock(w, "Obligations", OPERATIVE_TERMS_OBLIGATION_FIELDS, extracted);
-    renderOperativeBlock(w, "Other provisions", OPERATIVE_TERMS_OTHER_FIELDS, extracted);
+    const contextLines = formatInternationalContextLines(
+      extracted,
+      jurisdictionDisplayLabel(jurisdiction),
+    );
+    if (contextLines.length > 0 && contextLines[0] !== "—") {
+      w.heading("Lease context");
+      w.keyValue("Governing law & region", contextLines.join("; "));
+      w.spacer();
+    }
+    renderOperativeBlock(w, "Critical dates", OPERATIVE_TERMS_CRITICAL_FIELDS, extracted, formatOptions);
+    renderOperativeBlock(w, "Obligations", OPERATIVE_TERMS_OBLIGATION_FIELDS, extracted, formatOptions);
+    renderOperativeBlock(w, "Other provisions", OPERATIVE_TERMS_OTHER_FIELDS, extracted, formatOptions);
     if (extracted.confidence_score != null) {
       const pct = Math.round(Math.min(1, Math.max(0, extracted.confidence_score)) * 100);
       w.keyValue("Overall model confidence", `${pct}%`);

@@ -11,7 +11,11 @@ import {
 import { jsonSnippetMap } from "@/lib/lease/lease-detail";
 import { snippetEvidenceForField } from "@/lib/lease/lease-detail-audit";
 import type { FieldProvenanceEntry } from "@/lib/lease/lease-detail-audit";
-import { formatOperativeFieldLines } from "@/lib/lease/format-operative-field-value";
+import { formatOperativeFieldLines, type FormatOperativeOptions } from "@/lib/lease/format-operative-field-value";
+import { formatInternationalContextLines } from "@/lib/lease/jurisdiction/format-notice-period-lines";
+import { jurisdictionDisplayLabel } from "@/lib/lease/jurisdiction/labels";
+import { isLeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
+import { formatAppDate } from "@/lib/lease/format-app-date";
 import { parseFieldExtractionMeta, parseDateFieldConfidence } from "@/lib/lease/field-extraction-meta";
 import { operativeFieldLabel } from "@/lib/lease/lease-field-labels";
 import type { Tables } from "@/lib/supabase/database.types";
@@ -24,25 +28,20 @@ const DATE_OPERATIVE_FIELDS = new Set([
   "notice_period_days",
 ]);
 
-function formatEffectiveLine(prov: FieldProvenanceEntry | undefined): string | null {
+function formatEffectiveLine(prov: FieldProvenanceEntry | undefined, locale: string): string | null {
   if (!prov?.source_label) {
     return null;
   }
-  const d = prov.effective_date
-    ? new Date(`${prov.effective_date}T12:00:00Z`).toLocaleDateString("en-US", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : null;
+  const d = prov.effective_date ? formatAppDate(prov.effective_date, locale) : null;
   return d ? `Source instrument: ${prov.source_label} · effective ${d}` : `Source instrument: ${prov.source_label}`;
 }
 
 function formatValueForField(
   field: string,
   extracted: Tables<"extracted_data">,
+  options: FormatOperativeOptions,
 ): { lines: string[]; isMultiline: boolean } {
-  const lines = formatOperativeFieldLines(field, extracted);
+  const lines = formatOperativeFieldLines(field, extracted, options);
   const isMultiline =
     lines.length > 1 ||
     field === "repairing_obligation" ||
@@ -134,12 +133,33 @@ function OperativeEvidenceRow(props: Readonly<{
 
 type LeaseOperativeTermsProps = Readonly<{
   leaseId: string;
+  leaseJurisdiction: string;
+  displayLocale: string;
   extracted: Tables<"extracted_data">;
   provenance: Record<string, FieldProvenanceEntry>;
 }>;
 
-export function LeaseOperativeTerms({ leaseId, extracted, provenance }: LeaseOperativeTermsProps) {
+export function LeaseOperativeTerms({
+  leaseId,
+  leaseJurisdiction,
+  displayLocale,
+  extracted,
+  provenance,
+}: LeaseOperativeTermsProps) {
   const snippets = jsonSnippetMap(extracted.source_snippets);
+  const jurisdiction = isLeaseJurisdiction(leaseJurisdiction) ? leaseJurisdiction : "uk";
+  const jurisdictionLabel = jurisdictionDisplayLabel(jurisdiction);
+  const formatOptions: FormatOperativeOptions = {
+    locale: displayLocale,
+    leaseJurisdiction,
+  };
+
+  const contextLines = formatInternationalContextLines(extracted, jurisdictionLabel);
+  const hasContext =
+    Boolean(extracted.governing_law?.trim()) ||
+    Boolean(extracted.premises_country) ||
+    Boolean(extracted.rent_currency) ||
+    leaseJurisdiction !== "uk";
 
   const financialDateFields = ["rent_commencement_date", "rent_review_dates"] as const;
   const obligationFields = [
@@ -151,7 +171,7 @@ export function LeaseOperativeTerms({ leaseId, extracted, provenance }: LeaseOpe
   const otherFields = ["conditional_break_clause"] as const;
 
   const renderRow = (field: string) => {
-    const { lines, isMultiline } = formatValueForField(field, extracted);
+    const { lines, isMultiline } = formatValueForField(field, extracted, formatOptions);
     const snippetText = snippetEvidenceForField(field, snippets);
     return (
       <OperativeEvidenceRow
@@ -160,7 +180,7 @@ export function LeaseOperativeTerms({ leaseId, extracted, provenance }: LeaseOpe
         label={operativeFieldLabel(field)}
         lines={lines}
         multiline={isMultiline}
-        sourceLine={formatEffectiveLine(provenance[field])}
+        sourceLine={formatEffectiveLine(provenance[field], displayLocale)}
         snippetText={snippetText}
         extracted={extracted}
       />
@@ -173,10 +193,27 @@ export function LeaseOperativeTerms({ leaseId, extracted, provenance }: LeaseOpe
       description="Key dates and terms at a glance. Expand source clause, excerpt, or rationale on any row when you need audit detail."
     >
       <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-1 sm:p-2">
+        {hasContext ? (
+          <OperativeBlock title="Lease context">
+            <OperativeEvidenceRow
+              field="lease_context"
+              label="Governing law & region"
+              lines={contextLines}
+              multiline={contextLines.length > 1}
+              sourceLine={null}
+              snippetText={undefined}
+              extracted={extracted}
+            />
+          </OperativeBlock>
+        ) : null}
         <OperativeBlock title="Lease term dates">
           {renderRow("term_commencement_date")}
           {renderRow("expiry_date")}
-          <LeaseBreakClausePanel leaseId={leaseId} extracted={extracted} />
+          <LeaseBreakClausePanel
+            leaseId={leaseId}
+            extracted={extracted}
+            leaseJurisdiction={leaseJurisdiction}
+          />
           {renderRow("notice_period_days")}
         </OperativeBlock>
         <OperativeBlock title="Financial dates">{financialDateFields.map((f) => renderRow(f))}</OperativeBlock>

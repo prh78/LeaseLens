@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 
 import { buildLeaseSummaryPdfBytes } from "@/lib/export/lease-summary-pdf";
 import { effectiveLeaseNextAction } from "@/lib/lease/effective-lease-next-action";
+import { DEFAULT_DISPLAY_LOCALE } from "@/lib/lease/format-app-date";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { fetchDisplayLocaleForUser } from "@/lib/user/fetch-display-locale";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -67,7 +69,13 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const nextAction = effectiveLeaseNextAction(lease, extracted);
-  const bytes = await buildLeaseSummaryPdfBytes({ lease, extracted, nextAction });
+  const displayLocale = await fetchDisplayLocaleForUser(supabase, user.id);
+  const bytes = await buildLeaseSummaryPdfBytes({
+    lease,
+    extracted,
+    nextAction,
+    displayLocale: displayLocale ?? DEFAULT_DISPLAY_LOCALE,
+  });
   const filename = dispositionPdfFilename(lease.property_name);
 
   return new NextResponse(Buffer.from(bytes), {
