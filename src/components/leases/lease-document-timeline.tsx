@@ -6,6 +6,26 @@ import { LeaseDetailSection } from "@/components/leases/lease-detail-section";
 import { LEASE_DOCUMENT_TYPE_LABEL } from "@/lib/lease/lease-document-types";
 import type { LeaseDocumentProcessingStatus, Tables } from "@/lib/supabase/database.types";
 
+/** e.g. "Uploaded 14 May, 16.57" */
+function formatUploadedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return "Uploaded —";
+  }
+  const datePart = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `Uploaded ${datePart}, ${hours}.${minutes}`;
+}
+
+function documentEntryTitle(doc: Tables<"lease_documents">): string {
+  const custom = doc.display_name?.trim();
+  if (custom) {
+    return custom;
+  }
+  return LEASE_DOCUMENT_TYPE_LABEL[doc.document_type];
+}
+
 const statusBadge: Record<
   LeaseDocumentProcessingStatus,
   { label: string; className: string }
@@ -44,9 +64,7 @@ export function LeaseDocumentTimeline({ leaseId, documents }: LeaseDocumentTimel
         <ul className="space-y-4">
           {ordered.map((doc) => {
             const open = openId === doc.id;
-            const name =
-              doc.display_name?.trim() ||
-              `${LEASE_DOCUMENT_TYPE_LABEL[doc.document_type]} · ${new Date(doc.upload_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`;
+            const title = documentEntryTitle(doc);
             const st = statusBadge[doc.processing_status];
             const pdfHref = doc.file_url ? `/api/leases/${leaseId}/documents/${doc.id}` : undefined;
 
@@ -59,19 +77,9 @@ export function LeaseDocumentTimeline({ leaseId, documents }: LeaseDocumentTimel
                     onClick={() => toggle(doc.id)}
                     className="flex w-full items-start justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-slate-50/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-slate-400"
                   >
-                    <div className="min-w-0 space-y-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
-                      <p className="text-xs text-slate-500">{LEASE_DOCUMENT_TYPE_LABEL[doc.document_type]}</p>
-                      <p className="text-xs tabular-nums text-slate-500">
-                        Uploaded{" "}
-                        {new Date(doc.upload_date).toLocaleString("en-GB", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-sm font-semibold text-slate-900">{title}</p>
+                      <p className="text-xs tabular-nums text-slate-500">{formatUploadedAt(doc.upload_date)}</p>
                     </div>
                     <span
                       className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${st.className}`}

@@ -417,8 +417,6 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         )}
       </LeaseDetailSection>
 
-      <LeaseDocumentTimeline leaseId={lease.id} documents={documents} />
-
       {extracted ? (
         <LeaseOperativeTerms leaseId={lease.id} extracted={extracted} provenance={provenance} />
       ) : (
@@ -460,6 +458,8 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
             </ul>
           )}
         </LeaseDetailSection>
+
+        <LeaseDocumentTimeline leaseId={lease.id} documents={documents} />
 
         {/* Source snippets */}
         <LeaseDetailSection
