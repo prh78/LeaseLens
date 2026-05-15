@@ -8,6 +8,7 @@ import { LeaseManagementPanel } from "@/components/leases/lease-management-panel
 import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
 import { LeaseReviewActions } from "@/components/leases/lease-review-actions";
 import { RiskBadge } from "@/components/leases/risk-badge";
+import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
 import { nextActionDisplayLabel, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { collectLeaseRiskFlags } from "@/lib/lease/lease-summary-risk-flags";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
@@ -159,6 +160,7 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
 
   const dateAmbiguities = extracted ? parseDateAmbiguities(extracted.date_ambiguities) : [];
   const dateValidationWarnings = extracted ? leaseDateValidationWarningsFromExtractedRow(extracted) : [];
+  const termStatus = leaseTermStatusFromExpiryDate(extracted?.expiry_date ?? null);
 
   return (
     <div className="space-y-8">
@@ -355,7 +357,9 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         title="Next critical action"
         description="Prioritised from break notices, rent reviews, lease expiry, then manual review when applicable."
       >
-        {lease.extraction_status === "failed" ? (
+        {termStatus === "expired" ? (
+          <LeaseDetailEmptyHint>Lease term has expired; no next critical action is due.</LeaseDetailEmptyHint>
+        ) : lease.extraction_status === "failed" ? (
           <LeaseDetailEmptyHint>
             Next action is unavailable because processing did not complete. Fix the issue (see above) and re-run
             upload or analysis from the dashboard.
