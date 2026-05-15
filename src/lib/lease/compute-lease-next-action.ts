@@ -4,7 +4,7 @@ import {
   parseBreakClauseStatusMap,
   statusForBreakDate,
 } from "@/lib/lease/break-clause-status";
-import { jsonStringArray } from "@/lib/lease/lease-detail";
+import { formatIsoDate, jsonStringArray } from "@/lib/lease/lease-detail";
 import type { Json, LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
 
 export type { LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
@@ -21,6 +21,11 @@ export type LeaseNextActionResult = Readonly<{
   counts_toward_critical?: boolean;
   /** Present when `action_type` is `break_notice_deadline` and the row comes from a dated break. */
   break_clause_tier?: BreakClauseNextTier;
+  /**
+   * First calendar date the break option may be exercised (break date minus notice period).
+   * Not a due date — used for decision reminders only.
+   */
+  break_available_from?: string | null;
 }>;
 
 export const LEASE_NEXT_ACTION_LABEL: Record<LeaseNextActionType, string> = {
@@ -71,6 +76,15 @@ function subtractCalendarDays(iso: string, days: number): string | null {
   return utcDateOnlyString(d);
 }
 
+export function addCalendarDays(iso: string, days: number): string | null {
+  const d = parseIsoDateUtc(iso);
+  if (!d || days < 1) {
+    return null;
+  }
+  d.setUTCDate(d.getUTCDate() + days);
+  return utcDateOnlyString(d);
+}
+
 function validDateIso(iso: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso) && parseIsoDateUtc(iso) !== null;
 }
@@ -101,8 +115,8 @@ function noticeDays(value: number | null): number | null {
 }
 
 /**
- * Calendar date (UTC date-only) by which notice must be served for this break,
- * matching tier-1 next-action logic: break date minus notice period, or the break date if no period.
+ * Last calendar day to serve break notice to exercise on `breakIso` (break date minus notice period),
+ * or the break date when no notice period is recorded.
  */
 export function breakNoticeDeadlineIso(breakIso: string, noticePeriodDays: number | null): string | null {
   if (!validDateIso(breakIso)) {
@@ -115,6 +129,24 @@ export function breakNoticeDeadlineIso(breakIso: string, noticePeriodDays: numbe
   return breakIso;
 }
 
+/** First date the break option may be exercised (same calendar rule as notice deadline). */
+export function breakWindowOpensIso(breakIso: string, noticePeriodDays: number | null): string | null {
+  return breakNoticeDeadlineIso(breakIso, noticePeriodDays);
+}
+
+/** Portfolio / detail copy when a break is a decision reminder (no due date). */
+export function formatBreakAvailableFromLabel(availableFromIso: string): string {
+  const days = calendarDaysRemaining(availableFromIso);
+  const label = formatIsoDate(availableFromIso) ?? availableFromIso;
+  if (days === null) {
+    return `Available from ${label}`;
+  }
+  if (days > 0) {
+    return `Available from ${label}`;
+  }
+  return "Break window open";
+}
+
 function capUrgency(level: LeaseNextActionUrgency, cap: LeaseNextActionUrgency): LeaseNextActionUrgency {
   const rank: Record<LeaseNextActionUrgency, number> = { low: 0, medium: 1, high: 2, critical: 3 };
   return rank[level] <= rank[cap] ? level : cap;
@@ -123,64 +155,65 @@ function capUrgency(level: LeaseNextActionUrgency, cap: LeaseNextActionUrgency):
 /** 0 = committed exercise; 1 = decision needed (available or under review). */
 type BreakPriorityTier = 0 | 1;
 
-type BreakResultWithTier = LeaseNextActionResult & { readonly _tier: BreakPriorityTier };
+type BreakResultWithTier = LeaseNextActionResult & {
+  readonly _tier: BreakPriorityTier;
+  readonly _sortDays: number;
+};
+
+function decisionReminderRow(
+  extracted: ExtractedForNextAction,
+  breakIso: string,
+): BreakResultWithTier | null {
+  const availableFrom = breakWindowOpensIso(breakIso, extracted.notice_period_days);
+  if (!availableFrom) {
+    return null;
+  }
+  const daysUntilOpen = calendarDaysRemaining(availableFrom);
+  if (daysUntilOpen === null) {
+    return null;
+  }
+  const windowOpen = daysUntilOpen <= 0;
+  return {
+    action_type: "break_notice_deadline",
+    action_date: null,
+    days_remaining: null,
+    break_available_from: availableFrom,
+    urgency_level: windowOpen ? "high" : "medium",
+    counts_toward_critical: true,
+    break_clause_tier: "decision_reminder",
+    _tier: 1,
+    _sortDays: daysUntilOpen,
+  };
+}
 
 function singleBreakRow(
   extracted: ExtractedForNextAction,
   breakIso: string,
   status: ReturnType<typeof statusForBreakDate>,
 ): BreakResultWithTier | null {
-  const n = noticeDays(extracted.notice_period_days);
-
   if (status === "intend_to_exercise") {
-    const effectiveIso = n !== null ? subtractCalendarDays(breakIso, n) ?? breakIso : breakIso;
-    const days = calendarDaysRemaining(effectiveIso);
+    const noticeDeadline = breakNoticeDeadlineIso(breakIso, extracted.notice_period_days);
+    if (!noticeDeadline) {
+      return null;
+    }
+    const days = calendarDaysRemaining(noticeDeadline);
     if (days === null) {
       return null;
     }
     return {
       action_type: "break_notice_deadline",
-      action_date: effectiveIso,
+      action_date: noticeDeadline,
       days_remaining: days,
       urgency_level: urgencyFromDays(days),
       counts_toward_critical: true,
       break_clause_tier: "committed_exercise",
       _tier: 0,
+      _sortDays: days,
     };
   }
 
-  if (status === "under_review") {
-    const effectiveIso = breakNoticeDeadlineIso(breakIso, extracted.notice_period_days) ?? breakIso;
-    const days = calendarDaysRemaining(effectiveIso);
-    if (days === null) {
-      return null;
-    }
-    return {
-      action_type: "break_notice_deadline",
-      action_date: effectiveIso,
-      days_remaining: days,
-      urgency_level: capUrgency(urgencyFromDays(days), "high"),
-      counts_toward_critical: true,
-      break_clause_tier: "decision_reminder",
-      _tier: 1,
-    };
-  }
-
-  if (status === "available") {
-    const effectiveIso = breakNoticeDeadlineIso(breakIso, extracted.notice_period_days) ?? breakIso;
-    const days = calendarDaysRemaining(effectiveIso);
-    if (days === null) {
-      return null;
-    }
-    return {
-      action_type: "break_notice_deadline",
-      action_date: effectiveIso,
-      days_remaining: days,
-      urgency_level: capUrgency(urgencyFromDays(days), "high"),
-      counts_toward_critical: true,
-      break_clause_tier: "decision_reminder",
-      _tier: 1,
-    };
+  if (status === "under_review" || status === "available") {
+    return decisionReminderRow(extracted, breakIso);
   }
 
   return null;
@@ -206,7 +239,7 @@ function breakRowsWithTiers(extracted: ExtractedForNextAction): BreakResultWithT
 }
 
 function stripBreakTier(row: BreakResultWithTier): LeaseNextActionResult {
-  const { _tier: _unused, ...rest } = row;
+  const { _tier: _t, _sortDays: _s, ...rest } = row;
   return rest;
 }
 
@@ -237,7 +270,7 @@ function needsManualReview(extracted: ExtractedForNextAction): boolean {
 function sortedBreakTierStrip(tiers: BreakResultWithTier[], tier: BreakPriorityTier): LeaseNextActionResult[] {
   return tiers
     .filter((t) => t._tier === tier)
-    .sort((a, b) => (a.days_remaining ?? 0) - (b.days_remaining ?? 0))
+    .sort((a, b) => a._sortDays - b._sortDays)
     .map(stripBreakTier);
 }
 
@@ -246,7 +279,7 @@ function pickSoonestTierRow(tiers: BreakResultWithTier[], tier: BreakPriorityTie
   if (subset.length === 0) {
     return null;
   }
-  return subset.sort((a, b) => (a.days_remaining ?? 99_999) - (b.days_remaining ?? 99_999))[0] ?? null;
+  return subset.sort((a, b) => a._sortDays - b._sortDays)[0] ?? null;
 }
 
 function rentReviewActionResults(extracted: ExtractedForNextAction): LeaseNextActionResult[] {
@@ -375,6 +408,10 @@ export function isLeaseCriticalActionDue(next: LeaseNextActionResult | null): bo
   }
   if (next.action_type === "manual_review") {
     return true;
+  }
+  if (next.break_clause_tier === "decision_reminder" && next.break_available_from) {
+    const daysUntilOpen = calendarDaysRemaining(next.break_available_from);
+    return daysUntilOpen !== null && daysUntilOpen <= 90;
   }
   if (next.urgency_level === "high" || next.urgency_level === "critical") {
     return true;

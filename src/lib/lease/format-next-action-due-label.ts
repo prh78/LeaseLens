@@ -1,9 +1,15 @@
-import type { LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
+import {
+  formatBreakAvailableFromLabel,
+  type LeaseNextActionResult,
+} from "@/lib/lease/compute-lease-next-action";
 
 /** Human-readable relative / absolute timing for a next-action row. */
 export function formatNextActionDueLabel(next: LeaseNextActionResult): string {
   if (next.action_type === "manual_review") {
     return "Review recommended";
+  }
+  if (next.break_clause_tier === "decision_reminder" && next.break_available_from) {
+    return formatBreakAvailableFromLabel(next.break_available_from);
   }
   if (next.days_remaining === null || !next.action_date) {
     return "—";

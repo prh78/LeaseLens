@@ -85,15 +85,22 @@ export function buildCriticalDatesScheduleCsv(leaseRows: LeaseWithExtractedForEx
     if (ex) {
       const actions = computeAllLeaseActionsInPriorityOrder(extractedRowToNextActionInput(ex));
       for (const a of actions) {
-        const sortKey = a.action_date ?? "9999-12-31";
+        const eventIso = a.action_date ?? a.break_available_from ?? null;
+        const sortKey = eventIso ?? "9999-12-31";
+        const daysRemaining =
+          a.days_remaining !== null
+            ? String(a.days_remaining)
+            : eventIso
+              ? String(calendarDaysRemaining(eventIso) ?? "")
+              : "";
         flat.push({
           sortKey,
           leaseId: leaseRow.id,
           propertyName: leaseRow.property_name,
           termStatus: term,
           eventType: nextActionDisplayLabel(a),
-          eventDate: a.action_date ?? "",
-          daysRemaining: a.days_remaining === null ? "" : String(a.days_remaining),
+          eventDate: eventIso ?? "",
+          daysRemaining,
           urgency: a.urgency_level,
           overallRisk: risk,
           extractionStatus: extraction,

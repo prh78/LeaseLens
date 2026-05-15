@@ -16,7 +16,7 @@ import {
   parseBreakClauseStatusMap,
   type BreakClauseStatus,
 } from "@/lib/lease/break-clause-status";
-import { breakNoticeDeadlineIso } from "@/lib/lease/compute-lease-next-action";
+import { breakNoticeDeadlineIso, breakWindowOpensIso } from "@/lib/lease/compute-lease-next-action";
 import {
   parseDateFieldConfidence,
   parseFieldExtractionMeta,
@@ -63,7 +63,9 @@ function statusPillTone(status: BreakClauseStatus): string {
 
 type BreakOptionRowProps = Readonly<{
   breakLabel: string;
-  deadlineLabel: string;
+  availableFromLabel: string;
+  noticeDeadlineLabel: string;
+  noticePeriodDays: number | null;
   status: BreakClauseStatus;
   busy: boolean;
   onPersist: (status: BreakClauseStatus) => void;
@@ -75,7 +77,9 @@ type BreakOptionRowProps = Readonly<{
 
 function BreakOptionRow({
   breakLabel,
-  deadlineLabel,
+  availableFromLabel,
+  noticeDeadlineLabel,
+  noticePeriodDays,
   status,
   busy,
   onPersist,
@@ -85,6 +89,8 @@ function BreakOptionRow({
   dateFieldConfidence,
 }: BreakOptionRowProps) {
   const band = fieldConfidenceBand(BREAK_FIELD, allMeta, globalConfidence, dateFieldConfidence);
+  const isCommitted = status === "intend_to_exercise";
+  const showAvailableFrom = status === "available" || status === "under_review";
 
   return (
     <div className={operativeTermCardClass}>
@@ -92,9 +98,25 @@ function BreakOptionRow({
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Break option</p>
           <p className="mt-0.5 text-lg font-semibold leading-snug tabular-nums text-slate-900">{breakLabel}</p>
-          <p className="mt-1 text-[11px] leading-snug text-slate-500">
-            Notice deadline: <span className="font-medium tabular-nums text-slate-700">{deadlineLabel}</span>
-          </p>
+          {showAvailableFrom ? (
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Available from{" "}
+              <span className="font-medium tabular-nums text-slate-700">{availableFromLabel}</span>
+            </p>
+          ) : null}
+          {isCommitted ? (
+            <div className="mt-1 space-y-1 text-[11px] leading-snug text-slate-500">
+              <p>
+                Notice deadline:{" "}
+                <span className="font-medium tabular-nums text-slate-700">{noticeDeadlineLabel}</span>
+              </p>
+              <p>
+                {noticePeriodDays != null && noticePeriodDays >= 1
+                  ? `If notice is exercised, the tenancy ends after the ${noticePeriodDays}-day notice period from the date notice is served.`
+                  : "If notice is exercised, the tenancy ends after the notice period from the date notice is served."}
+              </p>
+            </div>
+          ) : null}
           <p className="mt-1.5">
             <span className={`${statusPillClass} ${statusPillTone(status)}`}>{BREAK_CLAUSE_STATUS_LABEL[status]}</span>
           </p>
@@ -209,15 +231,21 @@ export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePa
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
       {dates.map((iso) => {
         const breakLabel = formatIsoDate(iso) ?? iso;
-        const deadlineIso = breakNoticeDeadlineIso(iso, noticeDays);
-        const deadlineLabel = deadlineIso != null ? (formatIsoDate(deadlineIso) ?? deadlineIso) : "—";
+        const availableFromIso = breakWindowOpensIso(iso, noticeDays);
+        const availableFromLabel =
+          availableFromIso != null ? (formatIsoDate(availableFromIso) ?? availableFromIso) : "—";
+        const noticeDeadlineIso = breakNoticeDeadlineIso(iso, noticeDays);
+        const noticeDeadlineLabel =
+          noticeDeadlineIso != null ? (formatIsoDate(noticeDeadlineIso) ?? noticeDeadlineIso) : "—";
         const status = statusMap[iso] ?? "available";
 
         return (
           <BreakOptionRow
             key={iso}
             breakLabel={breakLabel}
-            deadlineLabel={deadlineLabel}
+            availableFromLabel={availableFromLabel}
+            noticeDeadlineLabel={noticeDeadlineLabel}
+            noticePeriodDays={noticeDays}
             status={status}
             busy={saving === iso}
             onPersist={(next) => void persist(iso, next)}
