@@ -3,6 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  ExtractionConfidencePill,
+  OperativeEvidenceCollapsibles,
+  fieldConfidenceBand,
+  operativeTermCardClass,
+} from "@/components/leases/operative-evidence-parts";
 import { snippetEvidenceForField } from "@/lib/lease/lease-detail-audit";
 import {
   BREAK_CLAUSE_STATUS_LABEL,
@@ -11,6 +17,12 @@ import {
   type BreakClauseStatus,
 } from "@/lib/lease/break-clause-status";
 import { breakNoticeDeadlineIso } from "@/lib/lease/compute-lease-next-action";
+import {
+  parseDateFieldConfidence,
+  parseFieldExtractionMeta,
+  type DateFieldConfidenceMap,
+  type FieldExtractionMetaEntry,
+} from "@/lib/lease/field-extraction-meta";
 import { formatIsoDate, jsonSnippetMap } from "@/lib/lease/lease-detail";
 import type { Json, Tables } from "@/lib/supabase/database.types";
 
@@ -18,6 +30,8 @@ type LeaseBreakClausePanelProps = Readonly<{
   leaseId: string;
   extracted: Tables<"extracted_data">;
 }>;
+
+const BREAK_FIELD = "break_dates";
 
 const DECISION_STATUSES = ["under_review", "intend_to_exercise", "do_not_exercise"] as const satisfies readonly BreakClauseStatus[];
 
@@ -47,6 +61,95 @@ function statusPillTone(status: BreakClauseStatus): string {
   }
 }
 
+type BreakOptionRowProps = Readonly<{
+  breakLabel: string;
+  deadlineLabel: string;
+  status: BreakClauseStatus;
+  busy: boolean;
+  onPersist: (status: BreakClauseStatus) => void;
+  snippetText: string | undefined;
+  allMeta: Record<string, FieldExtractionMetaEntry>;
+  globalConfidence: number | null | undefined;
+  dateFieldConfidence: DateFieldConfidenceMap;
+}>;
+
+function BreakOptionRow({
+  breakLabel,
+  deadlineLabel,
+  status,
+  busy,
+  onPersist,
+  snippetText,
+  allMeta,
+  globalConfidence,
+  dateFieldConfidence,
+}: BreakOptionRowProps) {
+  const band = fieldConfidenceBand(BREAK_FIELD, allMeta, globalConfidence, dateFieldConfidence);
+
+  return (
+    <div className={operativeTermCardClass}>
+      <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Break option</p>
+          <p className="mt-0.5 text-lg font-semibold leading-snug tabular-nums text-slate-900">{breakLabel}</p>
+          <p className="mt-1 text-[11px] leading-snug text-slate-500">
+            Notice deadline: <span className="font-medium tabular-nums text-slate-700">{deadlineLabel}</span>
+          </p>
+          <p className="mt-1.5">
+            <span className={`${statusPillClass} ${statusPillTone(status)}`}>{BREAK_CLAUSE_STATUS_LABEL[status]}</span>
+          </p>
+        </div>
+        <ExtractionConfidencePill band={band} />
+      </div>
+
+      <div className="border-t border-slate-100 px-3 py-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Decision</p>
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            {DECISION_STATUSES.map((decision) => {
+              const selected = status === decision;
+              return (
+                <button
+                  key={decision}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onPersist(decision)}
+                  className={[
+                    "rounded-lg border px-3 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                    selected
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  {DECISION_LABEL[decision]}
+                </button>
+              );
+            })}
+          </div>
+          {status !== "available" ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onPersist("available")}
+              className="self-start text-xs font-medium text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reset to available
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <OperativeEvidenceCollapsibles
+        field={BREAK_FIELD}
+        snippetText={snippetText}
+        allMeta={allMeta}
+        globalConfidence={globalConfidence}
+        dateFieldConfidence={dateFieldConfidence}
+      />
+    </div>
+  );
+}
+
 export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePanelProps) {
   const router = useRouter();
   const dates = breakDatesFromExtracted(extracted.break_dates);
@@ -55,12 +158,14 @@ export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePa
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const snippets = jsonSnippetMap(extracted.source_snippets);
+  const breakSnippet = snippetEvidenceForField(BREAK_FIELD, snippets);
+  const fieldMeta = parseFieldExtractionMeta(extracted.field_extraction_meta);
+  const dateFieldConfidence = parseDateFieldConfidence(extracted.date_field_confidence);
+
   useEffect(() => {
     setStatusMap(parseBreakClauseStatusMap(extracted.break_clause_status));
   }, [extracted.break_clause_status]);
-
-  const snippets = jsonSnippetMap(extracted.source_snippets);
-  const sharedSnippet = snippetEvidenceForField("break_dates", snippets);
 
   const persist = useCallback(
     async (breakIso: string, next: BreakClauseStatus) => {
@@ -93,90 +198,36 @@ export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePa
 
   if (dates.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-white/60 px-4 py-3 text-sm text-slate-600">
+      <div className="rounded-lg border border-dashed border-slate-200 bg-white/60 px-3 py-2.5 text-sm text-slate-600">
         No break dates extracted for this lease.
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
       {dates.map((iso) => {
         const breakLabel = formatIsoDate(iso) ?? iso;
         const deadlineIso = breakNoticeDeadlineIso(iso, noticeDays);
         const deadlineLabel = deadlineIso != null ? (formatIsoDate(deadlineIso) ?? deadlineIso) : "—";
         const status = statusMap[iso] ?? "available";
-        const busy = saving === iso;
 
         return (
-          <div
+          <BreakOptionRow
             key={iso}
-            className="rounded-lg border border-slate-200/90 bg-white px-4 py-3 shadow-sm ring-1 ring-slate-900/5"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Break option</p>
-
-            <dl className="mt-2 grid gap-2 sm:grid-cols-3 sm:gap-4">
-              <div>
-                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Break date</dt>
-                <dd className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{breakLabel}</dd>
-              </div>
-              <div>
-                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Notice deadline</dt>
-                <dd className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{deadlineLabel}</dd>
-              </div>
-              <div>
-                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Current status</dt>
-                <dd className="mt-1">
-                  <span className={`${statusPillClass} ${statusPillTone(status)}`}>{BREAK_CLAUSE_STATUS_LABEL[status]}</span>
-                </dd>
-              </div>
-            </dl>
-
-            <div className="mt-3 flex flex-col gap-2">
-              <div className="flex flex-wrap gap-2">
-                {DECISION_STATUSES.map((decision) => {
-                  const selected = status === decision;
-                  return (
-                    <button
-                      key={decision}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void persist(iso, decision)}
-                      className={[
-                        "rounded-lg border px-3 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                        selected
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      {DECISION_LABEL[decision]}
-                    </button>
-                  );
-                })}
-              </div>
-              {status !== "available" ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void persist(iso, "available")}
-                  className="self-start text-xs font-medium text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Reset to available
-                </button>
-              ) : null}
-            </div>
-          </div>
+            breakLabel={breakLabel}
+            deadlineLabel={deadlineLabel}
+            status={status}
+            busy={saving === iso}
+            onPersist={(next) => void persist(iso, next)}
+            snippetText={breakSnippet}
+            allMeta={fieldMeta}
+            globalConfidence={extracted.confidence_score}
+            dateFieldConfidence={dateFieldConfidence}
+          />
         );
       })}
-      {sharedSnippet ? (
-        <div className="rounded-lg border border-slate-100 bg-slate-50/80 px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Shared lease excerpt</p>
-          <blockquote className="mt-2 border-l-2 border-slate-300 bg-white/80 py-2 pl-3 pr-2 font-serif text-sm italic leading-relaxed text-slate-800">
-            {sharedSnippet}
-          </blockquote>
-        </div>
-      ) : null}
     </div>
   );
 }
