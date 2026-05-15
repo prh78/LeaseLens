@@ -7,12 +7,13 @@ import { LeaseDocumentTimeline } from "@/components/leases/lease-document-timeli
 import { LeaseManagementPanel } from "@/components/leases/lease-management-panel";
 import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
 import { LeaseReviewActions } from "@/components/leases/lease-review-actions";
+import { SourceClauseSnippetsPanel } from "@/components/leases/source-clause-snippets-panel";
 import { RiskBadge } from "@/components/leases/risk-badge";
 import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
 import { nextActionDisplayLabel, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { collectLeaseRiskFlags } from "@/lib/lease/lease-summary-risk-flags";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
-import { humanizeKey, jsonSnippetMap } from "@/lib/lease/lease-detail";
+import { jsonSnippetMap } from "@/lib/lease/lease-detail";
 import { parseDateAmbiguities } from "@/lib/lease/field-extraction-meta";
 import { leaseDateValidationWarningsFromExtractedRow } from "@/lib/lease/lease-date-validations";
 import {
@@ -463,26 +464,14 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
         {/* Source snippets */}
         <LeaseDetailSection
           title="Source clause snippets"
-          description="Full snippet index from the last analyse pass. Per-field excerpts and rationale also appear under Current operative terms → Extraction record."
+          description="Full snippet index from the last analyse pass. Expand when you need the raw text behind a field."
         >
           {!extracted ? (
             <LeaseDetailEmptyHint>No snippets yet.</LeaseDetailEmptyHint>
           ) : Object.keys(snippets).length === 0 ? (
             <LeaseDetailEmptyHint>No source snippets stored for this lease.</LeaseDetailEmptyHint>
           ) : (
-            <div className="space-y-4">
-              {Object.entries(snippets).map(([key, text]) => (
-                <article
-                  key={key}
-                  className="rounded-lg border border-slate-200 bg-slate-50/40 px-4 py-3 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)]"
-                >
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">{humanizeKey(key)}</h3>
-                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-slate-800">
-                    {text}
-                  </pre>
-                </article>
-              ))}
-            </div>
+            <SourceClauseSnippetsPanel snippets={snippets} />
           )}
         </LeaseDetailSection>
       </div>
