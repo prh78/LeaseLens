@@ -1,4 +1,4 @@
-import { parseIsoDateUtc, utcDateOnlyString } from "@/lib/alerts/date-helpers";
+import { parseIsoDateUtc, startOfTodayUtc, utcDateOnlyString } from "@/lib/alerts/date-helpers";
 import { jsonStringArray } from "@/lib/lease/lease-detail";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -185,6 +185,19 @@ export function tenancyEndFromServedNotice(
     return utcDateOnlyString(d);
   }
   return noticeServedDate;
+}
+
+/** UTC calendar date (YYYY-MM-DD) for today. */
+export function todayUtcIso(): string {
+  return utcDateOnlyString(startOfTodayUtc());
+}
+
+/**
+ * While break notice is intended but not yet served: tenancy end if notice were served today
+ * (advances by one calendar day each day until served).
+ */
+export function projectedTenancyEndIfNoticeServedToday(noticePeriodDays: number | null): string | null {
+  return tenancyEndFromServedNotice(todayUtcIso(), noticePeriodDays);
 }
 
 export type ExtractedForEffectiveExpiry = Readonly<{

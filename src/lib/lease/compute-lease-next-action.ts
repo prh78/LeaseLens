@@ -3,6 +3,7 @@ import {
   effectiveExpiryDate,
   isBreakClauseSuppressed,
   parseBreakClauseStatusMap,
+  projectedTenancyEndIfNoticeServedToday,
   statusForBreakDate,
 } from "@/lib/lease/break-clause-status";
 import { formatIsoDate, jsonStringArray } from "@/lib/lease/lease-detail";
@@ -11,7 +12,7 @@ import type { Json, LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/su
 export type { LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
 
 /** How a break row contributes to portfolio “critical” metrics and copy. */
-export type BreakClauseNextTier = "decision_reminder";
+export type BreakClauseNextTier = "decision_reminder" | "intend_projected_end";
 
 export type LeaseNextActionResult = Readonly<{
   action_type: LeaseNextActionType;
@@ -43,6 +44,9 @@ export function nextActionDisplayLabel(next: LeaseNextActionResult): string {
   }
   if (next.break_clause_tier === "decision_reminder") {
     return "Break decision reminder";
+  }
+  if (next.break_clause_tier === "intend_projected_end") {
+    return "Projected tenancy end";
   }
   return LEASE_NEXT_ACTION_LABEL.break_notice_deadline;
 }
@@ -153,13 +157,34 @@ function capUrgency(level: LeaseNextActionUrgency, cap: LeaseNextActionUrgency):
   return rank[level] <= rank[cap] ? level : cap;
 }
 
-/** 1 = decision needed (available, under review, or intend to exercise). */
-type BreakPriorityTier = 1;
+/** 0 = intend to exercise (projected end if notice served today); 1 = decision reminder. */
+type BreakPriorityTier = 0 | 1;
 
 type BreakResultWithTier = LeaseNextActionResult & {
   readonly _tier: BreakPriorityTier;
   readonly _sortDays: number;
 };
+
+function intendProjectedEndRow(extracted: ExtractedForNextAction): BreakResultWithTier | null {
+  const endIso = projectedTenancyEndIfNoticeServedToday(extracted.notice_period_days);
+  if (!endIso) {
+    return null;
+  }
+  const days = calendarDaysRemaining(endIso);
+  if (days === null) {
+    return null;
+  }
+  return {
+    action_type: "lease_expiry",
+    action_date: endIso,
+    days_remaining: days,
+    urgency_level: urgencyFromDays(days),
+    counts_toward_critical: true,
+    break_clause_tier: "intend_projected_end",
+    _tier: 0,
+    _sortDays: days,
+  };
+}
 
 function decisionReminderRow(
   extracted: ExtractedForNextAction,
@@ -192,7 +217,11 @@ function singleBreakRow(
   breakIso: string,
   status: ReturnType<typeof statusForBreakDate>,
 ): BreakResultWithTier | null {
-  if (status === "under_review" || status === "available" || status === "intend_to_exercise") {
+  if (status === "intend_to_exercise") {
+    return intendProjectedEndRow(extracted);
+  }
+
+  if (status === "under_review" || status === "available") {
     return decisionReminderRow(extracted, breakIso);
   }
 
@@ -309,6 +338,7 @@ export function computeAllLeaseActionsInPriorityOrder(
 
   const tiers = breakRowsWithTiers(extracted);
   const out: LeaseNextActionResult[] = [];
+  out.push(...sortedBreakTierStrip(tiers, 0));
   out.push(...sortedBreakTierStrip(tiers, 1));
   out.push(...rentReviewActionResults(extracted));
   const exp = expiryActionResult(extracted);
@@ -327,8 +357,8 @@ export function computeAllLeaseActionsInPriorityOrder(
 }
 
 /**
- * Strict priority: (1) break decision reminder (available, under review, intend to exercise),
- * (2) rent reviews, (3) lease expiry, (4) manual review.
+ * Strict priority: (1) projected tenancy end (intend to exercise), (2) break decision reminder,
+ * (3) rent reviews, (4) lease expiry, (5) manual review.
  */
 export function computeLeaseNextAction(extracted: ExtractedForNextAction | null): LeaseNextActionResult | null {
   if (!extracted) {
@@ -336,6 +366,10 @@ export function computeLeaseNextAction(extracted: ExtractedForNextAction | null)
   }
 
   const tiers = breakRowsWithTiers(extracted);
+  const intend = pickSoonestTierRow(tiers, 0);
+  if (intend) {
+    return stripBreakTier(intend);
+  }
   const decision = pickSoonestTierRow(tiers, 1);
   if (decision) {
     return stripBreakTier(decision);

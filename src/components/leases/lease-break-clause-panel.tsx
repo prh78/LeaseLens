@@ -20,6 +20,7 @@ import {
   type BreakClauseStatus,
   breakDatesFromExtracted,
   parseBreakClauseEntryMap,
+  projectedTenancyEndIfNoticeServedToday,
   tenancyEndFromServedNotice,
 } from "@/lib/lease/break-clause-status";
 import { breakWindowOpensIso } from "@/lib/lease/compute-lease-next-action";
@@ -79,6 +80,7 @@ type BreakOptionRowProps = Readonly<{
   breakLabel: string;
   availableFromLabel: string;
   tenancyEndLabel: string | null;
+  projectedEndIfServedTodayLabel: string | null;
   noticePeriodDays: number | null;
   entry: BreakClauseEntry;
   busy: boolean;
@@ -93,6 +95,7 @@ function BreakOptionRow({
   breakLabel,
   availableFromLabel,
   tenancyEndLabel,
+  projectedEndIfServedTodayLabel,
   noticePeriodDays,
   entry,
   busy,
@@ -151,11 +154,19 @@ function BreakOptionRow({
             </p>
           ) : null}
           {status === "intend_to_exercise" ? (
-            <p className="mt-1 text-[11px] leading-snug text-slate-500">
-              {noticePeriodDays != null && noticePeriodDays >= 1
-                ? `If notice is exercised, the tenancy ends after the ${noticePeriodDays}-day notice period from the date notice is served.`
-                : "If notice is exercised, the tenancy ends after the notice period from the date notice is served."}
-            </p>
+            <div className="mt-1 space-y-1 text-[11px] leading-snug text-slate-500">
+              {projectedEndIfServedTodayLabel ? (
+                <p>
+                  Projected tenancy end if notice served today:{" "}
+                  <span className="font-medium tabular-nums text-slate-700">{projectedEndIfServedTodayLabel}</span>
+                </p>
+              ) : null}
+              <p>
+                {noticePeriodDays != null && noticePeriodDays >= 1
+                  ? `This date moves forward one day for each day notice is not served (${noticePeriodDays}-day notice period).`
+                  : "This date moves forward one day for each day notice is not served."}
+              </p>
+            </div>
           ) : null}
           {status === "served" && tenancyEndLabel ? (
             <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -398,6 +409,12 @@ export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePa
             : null;
         const tenancyEndLabel =
           tenancyEndIso != null ? (formatIsoDate(tenancyEndIso) ?? tenancyEndIso) : null;
+        const projectedEndIso =
+          entry.status === "intend_to_exercise"
+            ? projectedTenancyEndIfNoticeServedToday(noticeDays)
+            : null;
+        const projectedEndIfServedTodayLabel =
+          projectedEndIso != null ? (formatIsoDate(projectedEndIso) ?? projectedEndIso) : null;
 
         return (
           <BreakOptionRow
@@ -405,6 +422,7 @@ export function LeaseBreakClausePanel({ leaseId, extracted }: LeaseBreakClausePa
             breakLabel={breakLabel}
             availableFromLabel={availableFromLabel}
             tenancyEndLabel={tenancyEndLabel}
+            projectedEndIfServedTodayLabel={projectedEndIfServedTodayLabel}
             noticePeriodDays={noticeDays}
             entry={entry}
             busy={saving === iso}
