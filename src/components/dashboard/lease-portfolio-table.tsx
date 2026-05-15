@@ -285,11 +285,15 @@ export function LeasePortfolioTable({ leases, noMatchesFromFilters, onClearFilte
                         )}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5">
-                        <span
-                          className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${risk.className}`}
-                        >
-                          {risk.label}
-                        </span>
+                        {isExpired ? (
+                          <span className="sr-only">Risk level not shown for expired leases.</span>
+                        ) : (
+                          <span
+                            className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${risk.className}`}
+                          >
+                            {risk.label}
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 align-top">
                         <LeaseExtractionProgress status={lease.extractionStatus} />
