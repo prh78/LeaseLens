@@ -12,6 +12,7 @@ import {
 import { formatIsoDate } from "@/lib/lease/lease-detail";
 import { leaseDocumentPdfStoragePath, leasePdfStoragePath } from "@/lib/lease/lease-storage-path";
 import type { LeaseTermStatus } from "@/lib/lease/lease-term-status";
+import { LEASE_JURISDICTION_LABEL, LEASE_JURISDICTIONS } from "@/lib/lease/jurisdiction/types";
 import { PROPERTY_TYPES } from "@/lib/lease/property-types";
 import {
   LEASE_AFFECTED_AREA_LABEL,
@@ -50,6 +51,7 @@ export function LeaseUploadForm() {
   const [documentType, setDocumentType] = useState<LeaseDocumentType>("primary_lease");
   const [propertyName, setPropertyName] = useState("");
   const [propertyType, setPropertyType] = useState<string>(PROPERTY_TYPES[0].value);
+  const [leaseJurisdiction, setLeaseJurisdiction] = useState<string>("uk");
   const [leaseId, setLeaseId] = useState("");
   const [affectedArea, setAffectedArea] = useState<string>("lease_term");
   const [leases, setLeases] = useState<LeaseRow[]>([]);
@@ -169,6 +171,7 @@ export function LeaseUploadForm() {
           body: JSON.stringify({
             propertyName: propertyName.trim(),
             propertyType,
+            leaseJurisdiction,
           }),
         });
         const payload = (await response.json()) as {
@@ -413,6 +416,28 @@ export function LeaseUploadForm() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="lease-jurisdiction" className="text-sm font-medium text-slate-700">
+              Lease jurisdiction
+            </label>
+            <select
+              id="lease-jurisdiction"
+              value={leaseJurisdiction}
+              onChange={(event) => setLeaseJurisdiction(event.target.value)}
+              disabled={busy}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-900 disabled:bg-slate-50"
+            >
+              {LEASE_JURISDICTIONS.map((code) => (
+                <option key={code} value={code}>
+                  {LEASE_JURISDICTION_LABEL[code]}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              Guides AI extraction terminology and notice-period handling. Existing leases default to United Kingdom.
+            </p>
           </div>
         </>
       ) : (

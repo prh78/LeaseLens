@@ -354,9 +354,12 @@ export function LeaseManagementPanel({
               <button
                 type="button"
                 disabled={busy || analyseBusy}
+                onClick={() => {
+                  void deleteEntireLease();
+                }}
                 className="rounded-lg border border-red-300 bg-red-50/90 px-3 py-2 text-sm font-semibold text-red-950 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Delete entire lease
+                {busy ? "Deleting…" : "Delete entire lease"}
               </button>
             </div>
           </div>

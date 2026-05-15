@@ -56,12 +56,14 @@ export type Database = {
           review_priority: LeaseReviewPriority | null;
           review_reason: string | null;
           review_affected_fields: Json;
+          lease_jurisdiction: string;
         };
         Insert: {
           id?: string;
           user_id: string;
           property_name: string;
           property_type?: string;
+          lease_jurisdiction?: string;
           file_url?: string | null;
           upload_date?: string;
           extraction_status?: ExtractionStatus;
@@ -81,6 +83,7 @@ export type Database = {
           user_id?: string;
           property_name?: string;
           property_type?: string;
+          lease_jurisdiction?: string;
           file_url?: string | null;
           upload_date?: string;
           extraction_status?: ExtractionStatus;
@@ -138,6 +141,10 @@ export type Database = {
           expiry_date: string | null;
           break_dates: Json;
           notice_period_days: number | null;
+          notice_period_spec: Json | null;
+          governing_law: string | null;
+          premises_country: string | null;
+          rent_currency: string | null;
           rent_review_dates: Json;
           break_clause_status: Json;
           repairing_obligation: string | null;
@@ -165,6 +172,10 @@ export type Database = {
           expiry_date?: string | null;
           break_dates?: Json;
           notice_period_days?: number | null;
+          notice_period_spec?: Json | null;
+          governing_law?: string | null;
+          premises_country?: string | null;
+          rent_currency?: string | null;
           rent_review_dates?: Json;
           break_clause_status?: Json;
           repairing_obligation?: string | null;
@@ -192,6 +203,10 @@ export type Database = {
           expiry_date?: string | null;
           break_dates?: Json;
           notice_period_days?: number | null;
+          notice_period_spec?: Json | null;
+          governing_law?: string | null;
+          premises_country?: string | null;
+          rent_currency?: string | null;
           rent_review_dates?: Json;
           break_clause_status?: Json;
           repairing_obligation?: string | null;

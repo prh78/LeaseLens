@@ -22,6 +22,9 @@ import {
 import { computeLeaseReviewSnapshot } from "@/lib/lease/compute-lease-review-snapshot";
 import { parseFieldExtractionMeta, parseDateAmbiguities, parseDateFieldConfidence } from "@/lib/lease/field-extraction-meta";
 import { mergeStructuredLeaseFields, parseSupersedesFields } from "@/lib/lease/merge-structured-lease-fields";
+import { isLeaseJurisdiction, type LeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
+import { noticePeriodSpecToJson } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
+import { resolveNoticePeriodForStorage } from "@/lib/lease/jurisdiction/resolve-notice-period";
 import { analyseLeaseTextWithOpenAI } from "@/lib/lease/openai-analyse";
 import { sortLeaseDocumentsForExtraction } from "@/lib/lease/sort-lease-documents-for-extraction";
 import { extractTextFromPdfBuffer } from "@/lib/pdf/extract-text";
@@ -66,8 +69,26 @@ function isMissingExtractedAuditColumnError(message: string): boolean {
         m.includes("document_conflicts") ||
         m.includes("field_extraction_meta") ||
         m.includes("date_validation_warnings") ||
-        m.includes("break_clause_status")))
+        m.includes("break_clause_status") ||
+        m.includes("governing_law") ||
+        m.includes("premises_country") ||
+        m.includes("rent_currency") ||
+        m.includes("notice_period_spec") ||
+        m.includes("lease_jurisdiction")))
   );
+}
+
+function applyNoticePeriodRules(structured: LeaseAnalyseOutput): LeaseAnalyseOutput {
+  const resolved = resolveNoticePeriodForStorage(
+    structured.notice_period_days,
+    structured.notice_period_spec,
+  );
+  return {
+    ...structured,
+    notice_period_days: resolved.notice_period_days,
+    manual_review_recommended:
+      structured.manual_review_recommended || resolved.requires_manual_review,
+  };
 }
 
 /**
@@ -148,7 +169,7 @@ export async function POST(request: Request) {
 
   const { data: lease, error: leaseError } = await admin
     .from("leases")
-    .select("id, user_id")
+    .select("id, user_id, lease_jurisdiction")
     .eq("id", leaseId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -184,11 +205,16 @@ export async function POST(request: Request) {
   const leaseText =
     trimmed.length > MAX_LEASE_TEXT_CHARS ? trimmed.slice(0, MAX_LEASE_TEXT_CHARS) : trimmed;
 
+  const jurisdiction: LeaseJurisdiction =
+    lease.lease_jurisdiction && isLeaseJurisdiction(lease.lease_jurisdiction)
+      ? lease.lease_jurisdiction
+      : "uk";
+
   let structured: LeaseAnalyseOutput;
   let attemptsUsed: number;
   try {
-    const result = await analyseLeaseTextWithOpenAI(leaseText);
-    structured = finalizeLeaseAnalyseOutput(result.data);
+    const result = await analyseLeaseTextWithOpenAI(leaseText, jurisdiction);
+    structured = applyNoticePeriodRules(finalizeLeaseAnalyseOutput(result.data));
     attemptsUsed = result.attemptsUsed;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "OpenAI analyse failed.";
@@ -257,8 +283,8 @@ export async function POST(request: Request) {
         const docTrimmed = docText.trim();
         const slice =
           docTrimmed.length > MAX_LEASE_TEXT_CHARS ? docTrimmed.slice(0, MAX_LEASE_TEXT_CHARS) : docTrimmed;
-        const supResult = await analyseLeaseTextWithOpenAI(slice);
-        const patch = finalizeLeaseAnalyseOutput(supResult.data);
+        const supResult = await analyseLeaseTextWithOpenAI(slice, jurisdiction);
+        const patch = applyNoticePeriodRules(finalizeLeaseAnalyseOutput(supResult.data));
         if (primaryDoc) {
           mergedStructured = mergeSupplementalWithAudit(mergedStructured, patch, keys, {
             primaryDocumentId: primaryDoc.id,
@@ -307,9 +333,9 @@ export async function POST(request: Request) {
     };
   }
 
-  mergedStructured = finalizeLeaseAnalyseOutput(mergedStructured);
+  mergedStructured = applyNoticePeriodRules(finalizeLeaseAnalyseOutput(mergedStructured));
   const { data: afterDateRules, warnings: dateValidationWarnings } = applyLeaseDateValidationRules(mergedStructured);
-  mergedStructured = afterDateRules;
+  mergedStructured = applyNoticePeriodRules(afterDateRules);
 
   const breakClauseEntries = syncBreakClauseEntriesWithBreakDates(
     mergedStructured.break_dates,
@@ -328,6 +354,10 @@ export async function POST(request: Request) {
     break_dates: mergedStructured.break_dates as unknown as Json,
     break_clause_status: breakClauseStatusRecord as unknown as Json,
     notice_period_days: mergedStructured.notice_period_days,
+    notice_period_spec: noticePeriodSpecToJson(mergedStructured.notice_period_spec),
+    governing_law: nullIfEmpty(mergedStructured.governing_law),
+    premises_country: mergedStructured.premises_country,
+    rent_currency: mergedStructured.rent_currency,
     rent_review_dates: mergedStructured.rent_review_dates as unknown as Json,
     repairing_obligation: nullIfEmpty(mergedStructured.repairing_obligation),
     service_charge_responsibility: nullIfEmpty(mergedStructured.service_charge_responsibility),

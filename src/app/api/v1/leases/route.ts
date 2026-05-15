@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
+import { isLeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
 import { isPropertyType } from "@/lib/lease/property-types";
 import type { Database } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 type CreateLeaseBody = {
   propertyName?: unknown;
   propertyType?: unknown;
+  leaseJurisdiction?: unknown;
 };
 
 /**
@@ -57,6 +59,9 @@ export async function POST(request: Request) {
   const propertyName =
     typeof body.propertyName === "string" ? body.propertyName.trim() : "";
   const propertyType = typeof body.propertyType === "string" ? body.propertyType : "";
+  const jurisdictionRaw =
+    typeof body.leaseJurisdiction === "string" ? body.leaseJurisdiction.trim().toLowerCase() : "uk";
+  const leaseJurisdiction = isLeaseJurisdiction(jurisdictionRaw) ? jurisdictionRaw : "uk";
 
   if (!propertyName || propertyName.length > 500) {
     return NextResponse.json({ error: "Property name is required (max 500 characters)." }, { status: 400 });
@@ -91,6 +96,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       property_name: propertyName,
       property_type: propertyType,
+      lease_jurisdiction: leaseJurisdiction,
       file_url: null,
       extraction_status: "uploading",
     })

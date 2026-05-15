@@ -13,5 +13,12 @@ export function leaseExtractionStatusConstraintHint(error: {
       "(from the project root run `supabase db push`, or paste that file into the Supabase SQL Editor and run it)."
     );
   }
+  if (error.message?.includes("leases_lease_jurisdiction_check")) {
+    return (
+      "Database is missing the jurisdiction migration: apply " +
+      "supabase/migrations/20260527120000_lease_jurisdiction_and_notice_units.sql " +
+      "(from the project root run `supabase db push`, or paste that file into the Supabase SQL Editor and run it)."
+    );
+  }
   return null;
 }

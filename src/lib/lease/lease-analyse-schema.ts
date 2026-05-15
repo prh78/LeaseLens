@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const dateOrNull = z.union([z.string().regex(ISO_DATE, "Expected YYYY-MM-DD"), z.null()]);
@@ -197,6 +199,41 @@ export function coerceDateAmbiguitiesInput(raw: unknown): z.infer<typeof dateAmb
   return out;
 }
 
+const countryCodeOrNull = z.preprocess((raw) => {
+  if (raw === null || raw === undefined || raw === "") {
+    return null;
+  }
+  if (typeof raw !== "string") {
+    return raw;
+  }
+  const t = raw.trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(t) ? t : null;
+}, z.union([z.string().length(2), z.null()]));
+
+const currencyCodeOrNull = z.preprocess((raw) => {
+  if (raw === null || raw === undefined || raw === "") {
+    return null;
+  }
+  if (typeof raw !== "string") {
+    return raw;
+  }
+  const t = raw.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(t) ? t : null;
+}, z.union([z.string().length(3), z.null()]));
+
+const noticePeriodSpecSchema = z.preprocess(
+  (raw) => parseNoticePeriodSpec(raw),
+  z
+    .object({
+      value: z.number().int().min(1).max(3650),
+      unit: z.enum(["calendar_days", "business_days", "months", "years"]),
+      day_basis: z.enum(["calendar", "business"]).nullable().optional(),
+      anchor: z.enum(["before_break_date", "before_expiry", "unspecified"]).nullable().optional(),
+      source_text: z.union([z.string().max(500), z.null()]).optional(),
+    })
+    .nullable(),
+);
+
 /**
  * Strict schema for OpenAI lease structured extraction.
  * All keys must be present in the model response (strict object).
@@ -208,6 +245,10 @@ export const leaseAnalyseOutputSchema = z
     expiry_date: dateOrNull,
     break_dates: dateArray,
     notice_period_days: z.union([z.number().int().min(0).max(3650), z.null()]),
+    notice_period_spec: noticePeriodSpecSchema,
+    governing_law: z.union([z.string().max(500), z.null()]),
+    premises_country: countryCodeOrNull,
+    rent_currency: currencyCodeOrNull,
     rent_review_dates: dateArray,
     repairing_obligation: z.union([z.string(), z.null()]),
     service_charge_responsibility: z.union([z.string(), z.null()]),
