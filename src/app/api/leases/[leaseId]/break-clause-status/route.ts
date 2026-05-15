@@ -5,8 +5,9 @@ import { syncLeaseAlerts } from "@/lib/alerts/sync-lease-alerts";
 import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import {
   breakDatesFromExtracted,
-  mergeBreakClauseStatusPatch,
-  parseBreakClauseStatusMap,
+  mergeBreakClauseEntryPatch,
+  parseBreakClauseEntryMap,
+  serialiseBreakClauseStatusForDb,
 } from "@/lib/lease/break-clause-status";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -18,7 +19,9 @@ type RouteContext = Readonly<{
 }>;
 
 type PatchBody = Readonly<{
+  /** @deprecated Prefer `entries` for served notice metadata. */
   statuses?: unknown;
+  entries?: unknown;
 }>;
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -45,9 +48,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const raw = body.statuses;
+  const raw = body.entries ?? body.statuses;
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
-    return NextResponse.json({ error: "Body must include statuses object." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Body must include entries or statuses object." },
+      { status: 400 },
+    );
   }
 
   const { data: lease, error: leaseErr } = await supabase
@@ -76,8 +82,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const allowed = breakDatesFromExtracted(extracted.break_dates);
-  const current = parseBreakClauseStatusMap(extracted.break_clause_status);
-  const next = mergeBreakClauseStatusPatch(current, allowed, raw as Record<string, unknown>);
+  const current = parseBreakClauseEntryMap(extracted.break_clause_status);
+  const nextEntries = mergeBreakClauseEntryPatch(current, allowed, raw as Record<string, unknown>);
+  const next = serialiseBreakClauseStatusForDb(nextEntries);
 
   const { error: upErr } = await supabase
     .from("extracted_data")

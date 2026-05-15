@@ -8,7 +8,10 @@ import { syncLeaseNextAction } from "@/lib/lease/sync-lease-next-action";
 import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { finalizeLeaseAnalyseOutput, type LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
 import { applyLeaseDateValidationRules } from "@/lib/lease/lease-date-validations";
-import { syncBreakClauseStatusWithBreakDates } from "@/lib/lease/break-clause-status";
+import {
+  serialiseBreakClauseStatusForDb,
+  syncBreakClauseEntriesWithBreakDates,
+} from "@/lib/lease/break-clause-status";
 import {
   buildInitialProvenance,
   mergeSupplementalWithAudit,
@@ -308,10 +311,11 @@ export async function POST(request: Request) {
   const { data: afterDateRules, warnings: dateValidationWarnings } = applyLeaseDateValidationRules(mergedStructured);
   mergedStructured = afterDateRules;
 
-  const breakClauseStatusRecord = syncBreakClauseStatusWithBreakDates(
+  const breakClauseEntries = syncBreakClauseEntriesWithBreakDates(
     mergedStructured.break_dates,
     extractedRow?.break_clause_status ?? null,
   );
+  const breakClauseStatusRecord = serialiseBreakClauseStatusForDb(breakClauseEntries);
 
   const preservedRaw = extractedRow?.raw_text ?? (rawTextOverride ? rawTextOverride : null);
 

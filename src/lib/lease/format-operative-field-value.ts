@@ -1,9 +1,12 @@
-import { formatIsoDate, jsonStringArray } from "@/lib/lease/lease-detail";
+import { jsonStringArray } from "@/lib/lease/lease-detail";
 import {
   BREAK_CLAUSE_STATUS_LABEL,
-  parseBreakClauseStatusMap,
-  statusForBreakDate,
+  effectiveExpiryDate,
+  isExpiryOverriddenByServedNotice,
+  parseBreakClauseEntryMap,
+  tenancyEndFromServedNotice,
 } from "@/lib/lease/break-clause-status";
+import { formatIsoDate } from "@/lib/lease/lease-detail";
 import type { Tables } from "@/lib/supabase/database.types";
 
 /** Field keys rendered under "Current operative terms" (same groupings as the lease UI). */
@@ -30,26 +33,51 @@ export function formatOperativeFieldLines(field: string, extracted: Tables<"extr
     case "term_commencement_date":
     case "rent_commencement_date":
     case "expiry_date": {
+      if (field === "expiry_date") {
+        const effective = effectiveExpiryDate(extracted);
+        const f = formatIsoDate(effective);
+        const lines: string[] = [f ? f : "—"];
+        if (isExpiryOverriddenByServedNotice(extracted)) {
+          const contractual = formatIsoDate(extracted.expiry_date);
+          if (contractual) {
+            lines.push(`Contractual expiry in lease: ${contractual}`);
+          }
+          lines.push("Updated from break notice served date plus notice period.");
+        }
+        return lines;
+      }
       const v =
         field === "term_commencement_date"
           ? extracted.term_commencement_date
-          : field === "rent_commencement_date"
-            ? extracted.rent_commencement_date
-            : extracted.expiry_date;
+          : extracted.rent_commencement_date;
       const f = formatIsoDate(v);
       return [f ? f : "—"];
     }
     case "break_dates": {
       const arr = jsonStringArray(extracted.break_dates);
-      const map = parseBreakClauseStatusMap(extracted.break_clause_status);
+      const entryMap = parseBreakClauseEntryMap(extracted.break_clause_status);
       const lines = arr
         .map((d) => {
           const fd = formatIsoDate(d);
           if (!fd) {
             return null;
           }
-          const st = statusForBreakDate(d, map);
-          return `${fd} (${BREAK_CLAUSE_STATUS_LABEL[st]})`;
+          const entry = entryMap[d] ?? { status: "available" as const, served: null };
+          const st = entry.status;
+          let line = `${fd} (${BREAK_CLAUSE_STATUS_LABEL[st]})`;
+          if (st === "served" && entry.served) {
+            const servedLabel = formatIsoDate(entry.served.notice_served_date) ?? entry.served.notice_served_date;
+            const end = tenancyEndFromServedNotice(
+              entry.served.notice_served_date,
+              extracted.notice_period_days,
+            );
+            const endLabel = end ? formatIsoDate(end) : null;
+            line += ` — notice served ${servedLabel}`;
+            if (endLabel) {
+              line += `, tenancy ends ${endLabel}`;
+            }
+          }
+          return line;
         })
         .filter((x): x is string => Boolean(x));
       return lines.length ? lines : ["—"];

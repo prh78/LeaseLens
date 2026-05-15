@@ -9,6 +9,7 @@ import { LeaseOperativeTerms } from "@/components/leases/lease-operative-terms";
 import { LeaseReviewActions } from "@/components/leases/lease-review-actions";
 import { SourceClauseSnippetsPanel } from "@/components/leases/source-clause-snippets-panel";
 import { RiskBadge } from "@/components/leases/risk-badge";
+import { effectiveExpiryDate } from "@/lib/lease/break-clause-status";
 import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
 import { nextActionDisplayLabel, type LeaseNextActionResult } from "@/lib/lease/compute-lease-next-action";
 import { collectLeaseRiskFlags } from "@/lib/lease/lease-summary-risk-flags";
@@ -161,7 +162,9 @@ export function LeaseDetailView({ lease, extracted, nextAction, documents }: Lea
 
   const dateAmbiguities = extracted ? parseDateAmbiguities(extracted.date_ambiguities) : [];
   const dateValidationWarnings = extracted ? leaseDateValidationWarningsFromExtractedRow(extracted) : [];
-  const termStatus = leaseTermStatusFromExpiryDate(extracted?.expiry_date ?? null);
+  const termStatus = leaseTermStatusFromExpiryDate(
+    extracted ? effectiveExpiryDate(extracted) : null,
+  );
 
   return (
     <div className="space-y-8">

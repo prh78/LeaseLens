@@ -1,5 +1,6 @@
 import { parseIsoDateUtc, utcDateOnlyString } from "@/lib/alerts/date-helpers";
 import {
+  effectiveExpiryDate,
   isBreakClauseSuppressed,
   parseBreakClauseStatusMap,
   statusForBreakDate,
@@ -10,7 +11,7 @@ import type { Json, LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/su
 export type { LeaseNextActionType, LeaseNextActionUrgency } from "@/lib/supabase/database.types";
 
 /** How a break row contributes to portfolio “critical” metrics and copy. */
-export type BreakClauseNextTier = "decision_reminder" | "committed_exercise";
+export type BreakClauseNextTier = "decision_reminder";
 
 export type LeaseNextActionResult = Readonly<{
   action_type: LeaseNextActionType;
@@ -152,8 +153,8 @@ function capUrgency(level: LeaseNextActionUrgency, cap: LeaseNextActionUrgency):
   return rank[level] <= rank[cap] ? level : cap;
 }
 
-/** 0 = committed exercise; 1 = decision needed (available or under review). */
-type BreakPriorityTier = 0 | 1;
+/** 1 = decision needed (available, under review, or intend to exercise). */
+type BreakPriorityTier = 1;
 
 type BreakResultWithTier = LeaseNextActionResult & {
   readonly _tier: BreakPriorityTier;
@@ -191,28 +192,7 @@ function singleBreakRow(
   breakIso: string,
   status: ReturnType<typeof statusForBreakDate>,
 ): BreakResultWithTier | null {
-  if (status === "intend_to_exercise") {
-    const noticeDeadline = breakNoticeDeadlineIso(breakIso, extracted.notice_period_days);
-    if (!noticeDeadline) {
-      return null;
-    }
-    const days = calendarDaysRemaining(noticeDeadline);
-    if (days === null) {
-      return null;
-    }
-    return {
-      action_type: "break_notice_deadline",
-      action_date: noticeDeadline,
-      days_remaining: days,
-      urgency_level: urgencyFromDays(days),
-      counts_toward_critical: true,
-      break_clause_tier: "committed_exercise",
-      _tier: 0,
-      _sortDays: days,
-    };
-  }
-
-  if (status === "under_review" || status === "available") {
+  if (status === "under_review" || status === "available" || status === "intend_to_exercise") {
     return decisionReminderRow(extracted, breakIso);
   }
 
@@ -300,23 +280,24 @@ function rentReviewActionResults(extracted: ExtractedForNextAction): LeaseNextAc
 }
 
 function expiryActionResult(extracted: ExtractedForNextAction): LeaseNextActionResult | null {
-  if (!extracted.expiry_date || !validDateIso(extracted.expiry_date)) {
+  const expiryIso = effectiveExpiryDate(extracted);
+  if (!expiryIso || !validDateIso(expiryIso)) {
     return null;
   }
-  const days = calendarDaysRemaining(extracted.expiry_date);
+  const days = calendarDaysRemaining(expiryIso);
   if (days === null) {
     return null;
   }
   return {
     action_type: "lease_expiry",
-    action_date: extracted.expiry_date,
+    action_date: expiryIso,
     days_remaining: days,
     urgency_level: urgencyFromDays(days),
   };
 }
 
 /**
- * All items in display order: committed break notice deadlines, decision reminders, rent reviews,
+ * All items in display order: break decision reminders, rent reviews,
  * lease expiry, informational break opportunities, then manual review when flagged.
  */
 export function computeAllLeaseActionsInPriorityOrder(
@@ -328,7 +309,6 @@ export function computeAllLeaseActionsInPriorityOrder(
 
   const tiers = breakRowsWithTiers(extracted);
   const out: LeaseNextActionResult[] = [];
-  out.push(...sortedBreakTierStrip(tiers, 0));
   out.push(...sortedBreakTierStrip(tiers, 1));
   out.push(...rentReviewActionResults(extracted));
   const exp = expiryActionResult(extracted);
@@ -347,8 +327,8 @@ export function computeAllLeaseActionsInPriorityOrder(
 }
 
 /**
- * Strict priority: (1) committed break notice (intend to exercise), (2) break decision reminder
- * (available or under review), (3) rent reviews, (4) lease expiry, (5) manual review.
+ * Strict priority: (1) break decision reminder (available, under review, intend to exercise),
+ * (2) rent reviews, (3) lease expiry, (4) manual review.
  */
 export function computeLeaseNextAction(extracted: ExtractedForNextAction | null): LeaseNextActionResult | null {
   if (!extracted) {
@@ -356,10 +336,6 @@ export function computeLeaseNextAction(extracted: ExtractedForNextAction | null)
   }
 
   const tiers = breakRowsWithTiers(extracted);
-  const intend = pickSoonestTierRow(tiers, 0);
-  if (intend) {
-    return stripBreakTier(intend);
-  }
   const decision = pickSoonestTierRow(tiers, 1);
   if (decision) {
     return stripBreakTier(decision);
@@ -375,12 +351,13 @@ export function computeLeaseNextAction(extracted: ExtractedForNextAction | null)
     };
   }
 
-  if (extracted.expiry_date && validDateIso(extracted.expiry_date)) {
-    const days = calendarDaysRemaining(extracted.expiry_date);
+  const expiryIso = effectiveExpiryDate(extracted);
+  if (expiryIso && validDateIso(expiryIso)) {
+    const days = calendarDaysRemaining(expiryIso);
     if (days !== null) {
       return {
         action_type: "lease_expiry",
-        action_date: extracted.expiry_date,
+        action_date: expiryIso,
         days_remaining: days,
         urgency_level: urgencyFromDays(days),
       };

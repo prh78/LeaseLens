@@ -6,6 +6,7 @@ import {
   nextActionDisplayLabel,
   urgencyFromDays,
 } from "@/lib/lease/compute-lease-next-action";
+import { effectiveExpiryDate } from "@/lib/lease/break-clause-status";
 import { extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
 import { parseIsoDateUtc } from "@/lib/alerts/date-helpers";
 import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
@@ -44,7 +45,7 @@ export function buildCriticalDatesScheduleCsv(leaseRows: LeaseWithExtractedForEx
 
   for (const leaseRow of leaseRows) {
     const ex = normalizedExtracted(leaseRow);
-    const term = leaseTermStatusFromExpiryDate(ex?.expiry_date ?? null);
+    const term = leaseTermStatusFromExpiryDate(ex ? effectiveExpiryDate(ex) : null);
     const risk = leaseRow.overall_risk;
     const extraction = leaseRow.extraction_status;
 

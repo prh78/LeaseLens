@@ -5,6 +5,7 @@ import {
   type LeaseNextActionResult,
 } from "@/lib/lease/compute-lease-next-action";
 import { effectiveLeaseNextAction, extractedRowToNextActionInput } from "@/lib/lease/effective-lease-next-action";
+import { effectiveExpiryDate } from "@/lib/lease/break-clause-status";
 import { formatNextActionDueLabel } from "@/lib/lease/format-next-action-due-label";
 import { leaseTermStatusFromExpiryDate } from "@/lib/lease/lease-term-status";
 import type {
@@ -82,7 +83,8 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
     totalLeases: leaseRows.length,
     criticalActionsDue: leaseRows.filter((row) => {
       const extracted = normalizedExtracted(row);
-      if (leaseTermStatusFromExpiryDate(extracted?.expiry_date ?? null) === "expired") {
+      const expiryIso = extracted ? effectiveExpiryDate(extracted) : null;
+      if (leaseTermStatusFromExpiryDate(expiryIso) === "expired") {
         return false;
       }
       return isLeaseCriticalActionDue(effectiveLeaseNextAction(row, extracted));
@@ -93,9 +95,8 @@ export function buildDashboardData(leaseRows: LeaseWithExtracted[]): DashboardDa
 
   const leases: DashboardLeaseRow[] = leaseRows.map((row) => {
     const extracted = normalizedExtracted(row);
-    const termStatus = leaseTermStatusFromExpiryDate(extracted?.expiry_date ?? null);
-
-    const expiryDate = extracted?.expiry_date ?? null;
+    const expiryDate = extracted ? effectiveExpiryDate(extracted) : null;
+    const termStatus = leaseTermStatusFromExpiryDate(expiryDate);
 
     if (termStatus === "expired") {
       return {

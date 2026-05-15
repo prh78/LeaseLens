@@ -7,12 +7,7 @@ import {
   isAlertCategoryEnabled,
   mergeNotificationSettingsFromRow,
 } from "@/lib/notifications/notification-settings";
-import {
-  isBreakClauseAlertEligible,
-  parseBreakClauseStatusMap,
-  statusForBreakDate,
-} from "@/lib/lease/break-clause-status";
-import { breakNoticeDeadlineIso } from "@/lib/lease/compute-lease-next-action";
+import { effectiveExpiryDate } from "@/lib/lease/break-clause-status";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 type Admin = SupabaseClient<Database>;
@@ -46,8 +41,6 @@ function collectEventDates(extracted: {
 }): { kind: AlertEventKind; iso: string }[] {
   const out: { kind: AlertEventKind; iso: string }[] = [];
   const seen = new Set<string>();
-  const breakStatusMap = parseBreakClauseStatusMap(extracted.break_clause_status ?? null);
-
   const push = (kind: AlertEventKind, iso: string) => {
     const key = `${kind}:${iso}`;
     if (seen.has(key)) {
@@ -57,15 +50,9 @@ function collectEventDates(extracted: {
     out.push({ kind, iso });
   };
 
-  if (extracted.expiry_date) {
-    push("expiry", extracted.expiry_date);
-  }
-  for (const iso of jsonStringArray(extracted.break_dates)) {
-    if (!isBreakClauseAlertEligible(statusForBreakDate(iso, breakStatusMap))) {
-      continue;
-    }
-    const alertIso = breakNoticeDeadlineIso(iso, extracted.notice_period_days) ?? iso;
-    push("break", alertIso);
+  const expiryIso = effectiveExpiryDate(extracted);
+  if (expiryIso) {
+    push("expiry", expiryIso);
   }
   for (const iso of jsonStringArray(extracted.rent_review_dates)) {
     push("rent_review", iso);
