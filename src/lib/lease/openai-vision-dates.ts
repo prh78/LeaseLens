@@ -17,18 +17,85 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_VISION_MODEL = "gpt-4o";
 const DEFAULT_TIMEOUT_MS = 180_000;
 
-const candidateSchema = z.object({
-  field: z.enum(["term_commencement_date", "rent_commencement_date", "expiry_date", "break_dates"]),
-  value: z.union([z.string().regex(ISO), z.array(z.string().regex(ISO)), z.null()]),
-  confidence: z.union([z.number().min(0).max(1), z.null()]),
-  pageNumber: z.union([z.number().int().min(1), z.null()]),
-  sourceText: z.union([z.string().max(1000), z.null()]),
-  rationale: z.union([z.string().max(1000), z.null()]),
-});
+const fieldSchema = z.enum(["term_commencement_date", "rent_commencement_date", "expiry_date", "break_dates"]);
 
-const responseSchema = z.object({
-  candidates: z.array(candidateSchema),
-});
+function isoOrNull(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return ISO.test(trimmed) ? trimmed : null;
+}
+
+function isoArrayOrNull(value: unknown): string[] | null {
+  if (Array.isArray(value)) {
+    const dates = value.map(isoOrNull).filter((v): v is string => v != null);
+    return dates.length > 0 ? dates : null;
+  }
+  const single = isoOrNull(value);
+  return single ? [single] : null;
+}
+
+function number01OrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.min(1, Math.max(0, value));
+  }
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : null;
+  }
+  return null;
+}
+
+function positiveIntegerOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 1) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const n = Number.parseInt(value, 10);
+    return Number.isInteger(n) && n >= 1 ? n : null;
+  }
+  return null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, 1000) : null;
+}
+
+function normaliseVisionCandidate(raw: unknown): VisionDateCandidate | null {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const o = raw as Record<string, unknown>;
+  const fieldCheck = fieldSchema.safeParse(o.field);
+  if (!fieldCheck.success) {
+    return null;
+  }
+  const field = fieldCheck.data;
+  const valueRaw = o.value ?? o.values ?? o.dates ?? o.date;
+  const value = field === "break_dates" ? isoArrayOrNull(valueRaw) : isoOrNull(valueRaw);
+  return {
+    field,
+    value,
+    confidence: number01OrNull(o.confidence),
+    pageNumber: positiveIntegerOrNull(o.pageNumber ?? o.page ?? o.page_number),
+    sourceText: stringOrNull(o.sourceText ?? o.source_text ?? o.evidence ?? o.quote),
+    rationale: stringOrNull(o.rationale ?? o.reasoning ?? o.notes),
+  };
+}
+
+function normaliseVisionResponse(raw: unknown): VisionDateCandidate[] {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    return [];
+  }
+  const candidatesRaw = (raw as Record<string, unknown>).candidates;
+  if (!Array.isArray(candidatesRaw)) {
+    return [];
+  }
+  return candidatesRaw
+    .map(normaliseVisionCandidate)
+    .filter((candidate): candidate is VisionDateCandidate => candidate != null);
+}
 
 function openAiVisionTimeoutMs(): number {
   const raw = process.env.OPENAI_VISION_TIMEOUT_MS?.trim();
@@ -87,8 +154,8 @@ Rules:
 - Inspect every supplied page image. Page labels are provided immediately before each image.
 - sourceText should quote/transcribe the nearby label and handwritten/printed date exactly enough for audit; if handwriting cannot be quoted exactly, describe the label and handwritten date read.
 - Use ISO YYYY-MM-DD for value.
-- Return strict JSON only:
-{ "candidates": [{ "field": "...", "value": "YYYY-MM-DD" | null, "confidence": 0-1 | null, "pageNumber": number | null, "sourceText": string | null, "rationale": string | null }] }`;
+- Return strict JSON only. For break_dates, value must be an array of ISO dates or null:
+{ "candidates": [{ "field": "term_commencement_date" | "rent_commencement_date" | "expiry_date" | "break_dates", "value": "YYYY-MM-DD" | ["YYYY-MM-DD"] | null, "confidence": 0-1 | null, "pageNumber": number | null, "sourceText": string | null, "rationale": string | null }] }`;
 
   try {
     const content = [
@@ -133,7 +200,7 @@ Rules:
       return [];
     }
     const parsed = JSON.parse(stripMarkdownJsonFence(body)) as unknown;
-    return responseSchema.parse(parsed).candidates;
+    return normaliseVisionResponse(parsed);
   } finally {
     clearTimeout(tid);
   }

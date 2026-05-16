@@ -148,7 +148,7 @@ function hasHighConfidenceVisionEvidence(
 ): boolean {
   const row = meta[field];
   const clause = row?.clause_reference?.toLowerCase() ?? "";
-  return clause.includes("vision ocr") && typeof row?.confidence === "number" && row.confidence >= 0.75;
+  return clause.includes("vision ocr") && typeof row?.confidence === "number" && row.confidence >= 0.6;
 }
 
 function unsupportedKeyDateWarnings(input: LeaseDateValidationInput): LeaseDateValidationWarning[] {
