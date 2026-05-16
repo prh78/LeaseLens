@@ -1,9 +1,16 @@
+import { join, sep } from "node:path";
+
 export type RenderedPdfPageImage = Readonly<{
   pageNumber: number;
   dataUrl: string;
 }>;
 
 const DEFAULT_SCALE = 2;
+
+function pdfJsWasmUrl(): string {
+  // NodeBinaryDataFactory concatenates `wasmUrl + filename` and reads it with fs.readFile.
+  return `${join(process.cwd(), "node_modules", "pdfjs-dist", "wasm")}${sep}`;
+}
 
 type CanvasModule = typeof import("@napi-rs/canvas");
 
@@ -45,6 +52,7 @@ export async function renderPdfPagesToPngDataUrls(
     data: new Uint8Array(data),
     disableWorker: true,
     useSystemFonts: true,
+    wasmUrl: pdfJsWasmUrl(),
   } as unknown as Parameters<typeof pdfjs.getDocument>[0]);
   const doc = await loadingTask.promise;
   const out: RenderedPdfPageImage[] = [];
