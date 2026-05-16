@@ -9,6 +9,10 @@ import { parseBearerFromRequest } from "@/lib/auth/bearer";
 import { finalizeLeaseAnalyseOutput, type LeaseAnalyseOutput } from "@/lib/lease/lease-analyse-schema";
 import { applyLeaseDateValidationRules } from "@/lib/lease/lease-date-validations";
 import {
+  readKeyDatesWithOpenAIVision,
+  type VisionKeyDateField,
+} from "@/lib/lease/openai-vision-dates";
+import {
   serialiseBreakClauseStatusForDb,
   syncBreakClauseEntriesWithBreakDates,
 } from "@/lib/lease/break-clause-status";
@@ -28,6 +32,7 @@ import { resolveNoticePeriodForStorage } from "@/lib/lease/jurisdiction/resolve-
 import { analyseLeaseTextWithOpenAI } from "@/lib/lease/openai-analyse";
 import { sortLeaseDocumentsForExtraction } from "@/lib/lease/sort-lease-documents-for-extraction";
 import { extractTextFromPdfBuffer } from "@/lib/pdf/extract-text";
+import { renderPdfPagesToPngDataUrls } from "@/lib/pdf/render-pages";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
 
@@ -37,6 +42,11 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const MAX_LEASE_TEXT_CHARS = 120_000;
+const VISION_DATE_FIELDS: readonly VisionKeyDateField[] = [
+  "term_commencement_date",
+  "rent_commencement_date",
+  "expiry_date",
+];
 
 type AnalyseBody = {
   leaseId?: unknown;
@@ -89,6 +99,94 @@ function applyNoticePeriodRules(structured: LeaseAnalyseOutput): LeaseAnalyseOut
     manual_review_recommended:
       structured.manual_review_recommended || resolved.requires_manual_review,
   };
+}
+
+function visionDateMinConfidence(): number {
+  const raw = process.env.OPENAI_VISION_DATE_MIN_CONFIDENCE?.trim();
+  if (!raw) {
+    return 0.75;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.min(Math.max(n, 0), 1) : 0.75;
+}
+
+function visionDateMaxPages(): number {
+  const raw = process.env.OPENAI_VISION_DATE_MAX_PAGES?.trim();
+  if (!raw) {
+    return 4;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.min(Math.max(Math.floor(n), 1), 8) : 4;
+}
+
+function visionDateOcrEnabled(): boolean {
+  return process.env.OPENAI_VISION_DATE_OCR?.trim().toLowerCase() !== "off";
+}
+
+async function applyVisionDateFallback(input: Readonly<{
+  admin: ReturnType<typeof createClient<Database>>;
+  storagePath: string | null | undefined;
+  structured: LeaseAnalyseOutput;
+}>): Promise<LeaseAnalyseOutput> {
+  if (!visionDateOcrEnabled() || !input.storagePath?.trim()) {
+    return input.structured;
+  }
+
+  const { data: blob, error } = await input.admin.storage.from("leases").download(input.storagePath);
+  if (error || !blob) {
+    console.warn("[analyse] vision date OCR skipped; primary PDF download failed:", error?.message);
+    return input.structured;
+  }
+
+  try {
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    const pageImages = await renderPdfPagesToPngDataUrls(buffer, { maxPages: visionDateMaxPages() });
+    const candidates = await readKeyDatesWithOpenAIVision({
+      pageImages,
+      fields: VISION_DATE_FIELDS,
+    });
+    if (candidates.length === 0) {
+      return input.structured;
+    }
+
+    const minConfidence = visionDateMinConfidence();
+    let next = input.structured;
+    for (const candidate of candidates) {
+      if (!candidate.value || candidate.confidence == null || candidate.confidence < minConfidence) {
+        continue;
+      }
+      const sourceText = candidate.sourceText?.trim();
+      if (!sourceText) {
+        continue;
+      }
+      next = {
+        ...next,
+        [candidate.field]: candidate.value,
+        source_snippets: {
+          ...next.source_snippets,
+          [candidate.field]: sourceText,
+        },
+        field_extraction_meta: {
+          ...next.field_extraction_meta,
+          [candidate.field]: {
+            ...(next.field_extraction_meta[candidate.field] ?? {}),
+            confidence: candidate.confidence,
+            clause_reference: candidate.pageNumber ? `Vision OCR page ${candidate.pageNumber}` : "Vision OCR",
+            rationale:
+              candidate.rationale ??
+              "Date read from rendered PDF image because embedded text did not clearly support the key date.",
+          },
+        },
+      };
+    }
+    return next;
+  } catch (cause) {
+    console.warn(
+      "[analyse] vision date OCR skipped:",
+      cause instanceof Error ? cause.message : String(cause),
+    );
+    return input.structured;
+  }
 }
 
 /**
@@ -243,7 +341,7 @@ export async function POST(request: Request) {
 
   const { data: primaryDoc, error: primaryDocErr } = await admin
     .from("lease_documents")
-    .select("id, upload_date")
+    .select("id, upload_date, file_url")
     .eq("lease_id", leaseId)
     .eq("document_type", "primary_lease")
     .maybeSingle();
@@ -251,6 +349,12 @@ export async function POST(request: Request) {
   if (primaryDocErr) {
     return NextResponse.json({ error: primaryDocErr.message }, { status: 500 });
   }
+
+  mergedStructured = await applyVisionDateFallback({
+    admin,
+    storagePath: primaryDoc?.file_url,
+    structured: mergedStructured,
+  });
 
   const changeAudit: ChangeHistoryEntry[] = [];
   const conflictAudit: DocumentConflictEntry[] = [];
