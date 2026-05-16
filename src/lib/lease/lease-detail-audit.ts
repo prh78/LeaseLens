@@ -60,6 +60,14 @@ function truncatePreview(value: unknown, max = 140): string {
   return `${s.slice(0, max)}…`;
 }
 
+const FIELD_EVIDENCE_ALIASES: Record<string, readonly string[]> = {
+  repairing_obligation: ["repair", "repairs", "repairing", "tenant_repair", "repairing_covenant"],
+  reinstatement_required: ["reinstatement", "reinstatement_obligation", "yield_up", "yielding_up"],
+  service_charge_responsibility: ["service_charge", "service_charges", "service_costs", "outgoings"],
+  vacant_possession_required: ["vacant_possession", "possession", "yield_up_vacant_possession"],
+  conditional_break_clause: ["break_clause", "break_option", "conditional_break", "termination_option"],
+};
+
 /** Substrings of structured field names that are too generic to match snippet keys (avoids `date` matching `break_dates`). */
 const SNIPPET_KEY_NOISE_TOKENS = new Set([
   "date",
@@ -69,7 +77,16 @@ const SNIPPET_KEY_NOISE_TOKENS = new Set([
 ]);
 
 function normalizeSnippetKeyOrField(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+  return s
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function evidenceAliasesForField(field: string): string[] {
+  const normalized = normalizeSnippetKeyOrField(field);
+  return [normalized, ...(FIELD_EVIDENCE_ALIASES[normalized] ?? [])].map(normalizeSnippetKeyOrField);
 }
 
 /**
@@ -77,16 +94,18 @@ function normalizeSnippetKeyOrField(s: string): string {
  * Uses exact normalized key match, then token overlap excluding generic date/day tokens.
  */
 function snippetKeyRelatesToStructuredField(normalizedSnippetKey: string, normalizedField: string): boolean {
-  if (normalizedSnippetKey === normalizedField) {
-    return true;
+  for (const candidate of evidenceAliasesForField(normalizedField)) {
+    if (normalizedSnippetKey === candidate || normalizedSnippetKey.includes(candidate)) {
+      return true;
+    }
+    const tokens = candidate
+      .split("_")
+      .filter((p) => p.length >= 3 && !SNIPPET_KEY_NOISE_TOKENS.has(p));
+    if (tokens.length > 0 && tokens.every((t) => normalizedSnippetKey.includes(t))) {
+      return true;
+    }
   }
-  const tokens = normalizedField
-    .split("_")
-    .filter((p) => p.length >= 3 && !SNIPPET_KEY_NOISE_TOKENS.has(p));
-  if (tokens.length === 0) {
-    return false;
-  }
-  return tokens.every((t) => normalizedSnippetKey.includes(t));
+  return false;
 }
 
 /**
@@ -95,6 +114,7 @@ function snippetKeyRelatesToStructuredField(normalizedSnippetKey: string, normal
  */
 export function snippetEvidenceForField(field: string, snippets: Record<string, string>): string | undefined {
   const normalizedField = normalizeSnippetKeyOrField(field);
+  const aliases = evidenceAliasesForField(normalizedField);
 
   const clip = (text: string): string => {
     const t = text.trim();
@@ -105,7 +125,7 @@ export function snippetEvidenceForField(field: string, snippets: Record<string, 
   };
 
   for (const [k, v] of Object.entries(snippets)) {
-    if (normalizeSnippetKeyOrField(k) === normalizedField) {
+    if (aliases.includes(normalizeSnippetKeyOrField(k))) {
       const out = clip(v);
       if (out) {
         return out;

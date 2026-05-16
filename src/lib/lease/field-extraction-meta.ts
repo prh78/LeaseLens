@@ -43,6 +43,33 @@ function firstNonEmptyStringFromRecord(r: Record<string, unknown>, keys: readonl
   return undefined;
 }
 
+const FIELD_META_ALIASES: Record<string, readonly string[]> = {
+  repairing_obligation: ["repair", "repairs", "repairing", "repairing_covenant", "tenant_repair"],
+  reinstatement_required: ["reinstatement", "reinstatement_obligation", "yield_up", "yielding_up"],
+  service_charge_responsibility: ["service_charge", "service_charges", "service_costs", "outgoings"],
+  vacant_possession_required: ["vacant_possession", "possession", "yield_up_vacant_possession"],
+  conditional_break_clause: ["break_clause", "break_option", "conditional_break", "termination_option"],
+};
+
+function normalizeFieldMetaKey(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function canonicalFieldForMetaKey(field: string): string | null {
+  const normalized = normalizeFieldMetaKey(field);
+  for (const [canonical, aliases] of Object.entries(FIELD_META_ALIASES)) {
+    const candidates = [canonical, ...aliases].map(normalizeFieldMetaKey);
+    if (candidates.some((candidate) => normalized === candidate || normalized.includes(candidate))) {
+      return canonical;
+    }
+  }
+  return null;
+}
+
 export function parseFieldExtractionMeta(raw: Json | null | undefined): Record<string, FieldExtractionMetaEntry> {
   if (raw == null || !isRecord(raw)) {
     return {};
@@ -103,7 +130,12 @@ export function parseFieldExtractionMeta(raw: Json | null | undefined): Record<s
                 : undefined;
 
     if (confidence !== undefined || rationale !== undefined || clause_reference !== undefined) {
-      out[field] = { confidence, rationale, clause_reference };
+      const entry = { confidence, rationale, clause_reference };
+      out[field] = entry;
+      const canonical = canonicalFieldForMetaKey(field);
+      if (canonical && out[canonical] === undefined) {
+        out[canonical] = entry;
+      }
     }
   }
   return out;
