@@ -82,9 +82,10 @@ Rules:
 - Return null for a field unless the date is clearly tied to its label/definition.
 - break_dates must be an array of ISO dates when one or more break/termination option dates are clearly tied to a break option label; otherwise null.
 - Do not use rent review, rent escalation, signature, completion, handwritten completion, or document dates as key dates or break_dates.
-- If a date is handwritten but legible, you may return it.
+- The lease may have handwritten dates in boxes or blanks beside printed labels. If a handwritten date is legible and tied to the label, return it.
+- Pay particular attention to printed labels such as "Term Commencement Date", "Rent Commencement Date", "Expiry Date", "Break Date", "Option Date", "Termination Date".
 - Inspect every supplied page image. Page labels are provided immediately before each image.
-- sourceText must quote/transcribe the nearby label and handwritten/printed date exactly enough for audit.
+- sourceText should quote/transcribe the nearby label and handwritten/printed date exactly enough for audit; if handwriting cannot be quoted exactly, describe the label and handwritten date read.
 - Use ISO YYYY-MM-DD for value.
 - Return strict JSON only:
 { "candidates": [{ "field": "...", "value": "YYYY-MM-DD" | null, "confidence": 0-1 | null, "pageNumber": number | null, "sourceText": string | null, "rationale": string | null }] }`;

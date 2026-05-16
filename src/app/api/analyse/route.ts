@@ -105,10 +105,10 @@ function applyNoticePeriodRules(structured: LeaseAnalyseOutput): LeaseAnalyseOut
 function visionDateMinConfidence(): number {
   const raw = process.env.OPENAI_VISION_DATE_MIN_CONFIDENCE?.trim();
   if (!raw) {
-    return 0.75;
+    return 0.6;
   }
   const n = Number(raw);
-  return Number.isFinite(n) ? Math.min(Math.max(n, 0), 1) : 0.75;
+  return Number.isFinite(n) ? Math.min(Math.max(n, 0), 1) : 0.6;
 }
 
 function visionDateMaxPages(): number {
@@ -131,7 +131,7 @@ function visionDateFocusedPages(): number[] {
       return [...new Set(parsed)].sort((a, b) => a - b);
     }
   }
-  return [1, 2, 3, 4, 5, 6];
+  return [3, 4];
 }
 
 function visionDateOcrEnabled(): boolean {
@@ -159,7 +159,7 @@ async function applyVisionDateFallback(input: Readonly<{
     const pageImages = await renderPdfPagesToPngDataUrls(buffer, {
       maxPages: visionDateMaxPages(),
       pageNumbers,
-      scale: 2.5,
+      scale: 3,
     });
     console.info("[analyse] vision date OCR rendered pages:", pageImages.map((p) => p.pageNumber).join(", "));
     const candidates = await readKeyDatesWithOpenAIVision({
@@ -180,10 +180,10 @@ async function applyVisionDateFallback(input: Readonly<{
       if (!candidate.value || candidate.confidence == null || candidate.confidence < minConfidence) {
         continue;
       }
-      const sourceText = candidate.sourceText?.trim();
-      if (!sourceText) {
-        continue;
-      }
+      const valueText = Array.isArray(candidate.value) ? candidate.value.join(", ") : candidate.value;
+      const sourceText =
+        candidate.sourceText?.trim() ||
+        `Vision OCR page ${candidate.pageNumber ?? "unknown"} read ${candidate.field}: ${valueText}`;
       if (candidate.field === "break_dates") {
         const values = Array.isArray(candidate.value) ? candidate.value : [candidate.value];
         if (values.length === 0) {
