@@ -51,6 +51,29 @@ export function parseSupersedesFields(json: Json | null | undefined): (keyof Lea
   return out;
 }
 
+function isEmptySupplementalValue(value: unknown): boolean {
+  if (value == null) {
+    return true;
+  }
+  if (typeof value === "string") {
+    return value.trim().length === 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  return false;
+}
+
+function shouldApplySupplementalValue(
+  currentValue: unknown,
+  patchValue: unknown,
+): boolean {
+  if (isEmptySupplementalValue(patchValue) && !isEmptySupplementalValue(currentValue)) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Applies supplemental structured output onto `base` for the listed keys only.
  * `source_snippets` are shallow-merged when that key is overridden.
@@ -71,6 +94,9 @@ export function mergeStructuredLeaseFields(
     }
     if (key === "field_extraction_meta") {
       next.field_extraction_meta = { ...base.field_extraction_meta, ...patch.field_extraction_meta };
+      continue;
+    }
+    if (!shouldApplySupplementalValue(next[key], patch[key])) {
       continue;
     }
     (next as Record<string, unknown>)[key] = patch[key] as unknown;

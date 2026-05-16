@@ -28,7 +28,7 @@ export function supersedesKeysForAffectedArea(area: LeaseAffectedArea): (keyof L
     case "break_clauses":
       return ["break_dates", "notice_period_days"];
     case "rent_review":
-      return ["rent_review_dates", "rent_commencement_date", "date_field_confidence", "date_ambiguities"];
+      return ["rent_review_dates", "date_field_confidence", "date_ambiguities"];
     case "repairing_obligations":
       return ["repairing_obligation", "reinstatement_required", "vacant_possession_required"];
     case "service_charge":

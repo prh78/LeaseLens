@@ -227,6 +227,26 @@ function appendFieldConflict(
   }
 }
 
+function isEmptySupplementalValue(value: unknown): boolean {
+  if (value == null) {
+    return true;
+  }
+  if (typeof value === "string") {
+    return value.trim().length === 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  return false;
+}
+
+function shouldApplySupplementalValue(currentValue: unknown, patchValue: unknown): boolean {
+  if (isEmptySupplementalValue(patchValue) && !isEmptySupplementalValue(currentValue)) {
+    return false;
+  }
+  return true;
+}
+
 export function buildInitialProvenance(primary: Readonly<{ id: string; upload_date: string }>): FieldProvenanceMap {
   const ed = effectiveDate(primary.upload_date);
   const label = LEASE_DOCUMENT_TYPE_LABEL.primary_lease;
@@ -282,6 +302,9 @@ export function mergeSupplementalWithAudit(
     const keyStr = String(key);
     const beforeVal = result[key];
     const patchVal = patch[key];
+    if (!shouldApplySupplementalValue(beforeVal, patchVal)) {
+      continue;
+    }
     if (stable(key, beforeVal) === stable(key, patchVal)) {
       continue;
     }
