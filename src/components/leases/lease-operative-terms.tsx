@@ -14,6 +14,7 @@ import type { FieldProvenanceEntry } from "@/lib/lease/lease-detail-audit";
 import { formatOperativeFieldLines, type FormatOperativeOptions } from "@/lib/lease/format-operative-field-value";
 import { formatInternationalContextLines } from "@/lib/lease/jurisdiction/format-notice-period-lines";
 import { jurisdictionDisplayLabel } from "@/lib/lease/jurisdiction/labels";
+import { parseNoticePeriodSpec } from "@/lib/lease/jurisdiction/parse-notice-period-spec";
 import { isLeaseJurisdiction } from "@/lib/lease/jurisdiction/types";
 import { formatAppDate } from "@/lib/lease/format-app-date";
 import { parseFieldExtractionMeta, parseDateFieldConfidence } from "@/lib/lease/field-extraction-meta";
@@ -172,7 +173,11 @@ export function LeaseOperativeTerms({
 
   const renderRow = (field: string) => {
     const { lines, isMultiline } = formatValueForField(field, extracted, formatOptions);
-    const snippetText = snippetEvidenceForField(field, snippets);
+    const snippetText =
+      snippetEvidenceForField(field, snippets) ??
+      (field === "notice_period_days"
+        ? (parseNoticePeriodSpec(extracted.notice_period_spec)?.source_text ?? undefined)
+        : undefined);
     return (
       <OperativeEvidenceRow
         key={field}

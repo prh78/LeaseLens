@@ -61,7 +61,24 @@ function truncatePreview(value: unknown, max = 140): string {
 }
 
 const FIELD_EVIDENCE_ALIASES: Record<string, readonly string[]> = {
+  term_commencement_date: [
+    "term_commencement",
+    "commencement_date",
+    "lease_commencement",
+    "term_start",
+    "start_date",
+    "date_of_commencement",
+  ],
+  rent_commencement_date: [
+    "rent_commencement",
+    "rent_start",
+    "rent_start_date",
+    "rent_payment_start",
+    "rent_free",
+    "rent_free_period",
+  ],
   expiry_date: ["expiry", "expiration", "lease_expiry", "term_expiry", "term_end", "end_date", "lease_term"],
+  notice_period_days: ["notice_period", "notice", "break_notice", "termination_notice", "notice_required"],
   repairing_obligation: ["repair", "repairs", "repairing", "tenant_repair", "repairing_covenant"],
   reinstatement_required: ["reinstatement", "reinstatement_obligation", "yield_up", "yielding_up"],
   service_charge_responsibility: ["service_charge", "service_charges", "service_costs", "outgoings"],
@@ -70,7 +87,23 @@ const FIELD_EVIDENCE_ALIASES: Record<string, readonly string[]> = {
 };
 
 const FIELD_EVIDENCE_TEXT_KEYWORDS: Record<string, readonly string[]> = {
+  term_commencement_date: [
+    "term commencement",
+    "commencement date",
+    "commencing on",
+    "term shall commence",
+    "date of commencement",
+  ],
+  rent_commencement_date: [
+    "rent commencement",
+    "rent shall commence",
+    "rent payment",
+    "rent free",
+    "rent-free",
+    "first payment of rent",
+  ],
   expiry_date: ["expiry", "expiration", "expire", "term end", "term shall end", "end of the term"],
+  notice_period_days: ["notice period", "not less than", "months' notice", "months notice", "days' notice", "days notice"],
   repairing_obligation: ["repair", "repairs", "repairing", "keep in repair", "tenant shall repair"],
   reinstatement_required: ["reinstatement", "reinstate", "yield up", "remove alterations", "make good"],
   service_charge_responsibility: ["service charge", "service charges", "service costs", "outgoings"],

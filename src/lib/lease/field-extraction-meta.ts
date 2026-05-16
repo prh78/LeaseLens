@@ -44,7 +44,24 @@ function firstNonEmptyStringFromRecord(r: Record<string, unknown>, keys: readonl
 }
 
 const FIELD_META_ALIASES: Record<string, readonly string[]> = {
+  term_commencement_date: [
+    "term_commencement",
+    "commencement_date",
+    "lease_commencement",
+    "term_start",
+    "start_date",
+    "date_of_commencement",
+  ],
+  rent_commencement_date: [
+    "rent_commencement",
+    "rent_start",
+    "rent_start_date",
+    "rent_payment_start",
+    "rent_free",
+    "rent_free_period",
+  ],
   expiry_date: ["expiry", "expiration", "lease_expiry", "term_expiry", "term_end", "end_date", "lease_term"],
+  notice_period_days: ["notice_period", "notice", "break_notice", "termination_notice", "notice_required"],
   repairing_obligation: ["repair", "repairs", "repairing", "repairing_covenant", "tenant_repair"],
   reinstatement_required: ["reinstatement", "reinstatement_obligation", "yield_up", "yielding_up"],
   service_charge_responsibility: ["service_charge", "service_charges", "service_costs", "outgoings"],
