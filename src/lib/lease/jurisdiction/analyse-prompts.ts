@@ -106,7 +106,10 @@ export function buildAnalyseUserPrompt(leaseText: string): string {
 
 When notice is in months or years, set notice_period_days to null and populate notice_period_spec. When notice is a clear day count, set notice_period_spec to null and notice_period_days to that integer.
 
-Include field_extraction_meta entries for important date fields where possible.
+For every non-null operative field, include:
+- source_snippets using the exact field name as the key, especially expiry_date, repairing_obligation, service_charge_responsibility, reinstatement_required, vacant_possession_required, and conditional_break_clause.
+- field_extraction_meta using the exact field name as the key, with clause_reference and rationale.
+Use short verbatim excerpts from the lease text; do not paraphrase source_snippets.
 
 Lease text follows between <<<LEASE>>> and <<<END>>>.
 

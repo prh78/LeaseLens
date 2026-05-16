@@ -61,11 +61,21 @@ function truncatePreview(value: unknown, max = 140): string {
 }
 
 const FIELD_EVIDENCE_ALIASES: Record<string, readonly string[]> = {
+  expiry_date: ["expiry", "expiration", "lease_expiry", "term_expiry", "term_end", "end_date", "lease_term"],
   repairing_obligation: ["repair", "repairs", "repairing", "tenant_repair", "repairing_covenant"],
   reinstatement_required: ["reinstatement", "reinstatement_obligation", "yield_up", "yielding_up"],
   service_charge_responsibility: ["service_charge", "service_charges", "service_costs", "outgoings"],
   vacant_possession_required: ["vacant_possession", "possession", "yield_up_vacant_possession"],
   conditional_break_clause: ["break_clause", "break_option", "conditional_break", "termination_option"],
+};
+
+const FIELD_EVIDENCE_TEXT_KEYWORDS: Record<string, readonly string[]> = {
+  expiry_date: ["expiry", "expiration", "expire", "term end", "term shall end", "end of the term"],
+  repairing_obligation: ["repair", "repairs", "repairing", "keep in repair", "tenant shall repair"],
+  reinstatement_required: ["reinstatement", "reinstate", "yield up", "remove alterations", "make good"],
+  service_charge_responsibility: ["service charge", "service charges", "service costs", "outgoings"],
+  vacant_possession_required: ["vacant possession", "give vacant possession", "yield up"],
+  conditional_break_clause: ["break clause", "break option", "break date", "terminate", "termination option"],
 };
 
 /** Substrings of structured field names that are too generic to match snippet keys (avoids `date` matching `break_dates`). */
@@ -87,6 +97,13 @@ function normalizeSnippetKeyOrField(s: string): string {
 function evidenceAliasesForField(field: string): string[] {
   const normalized = normalizeSnippetKeyOrField(field);
   return [normalized, ...(FIELD_EVIDENCE_ALIASES[normalized] ?? [])].map(normalizeSnippetKeyOrField);
+}
+
+function evidenceTextKeywordsForField(field: string): string[] {
+  const normalized = normalizeSnippetKeyOrField(field);
+  return (FIELD_EVIDENCE_TEXT_KEYWORDS[normalized] ?? [])
+    .map((keyword) => keyword.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 /**
@@ -115,6 +132,7 @@ function snippetKeyRelatesToStructuredField(normalizedSnippetKey: string, normal
 export function snippetEvidenceForField(field: string, snippets: Record<string, string>): string | undefined {
   const normalizedField = normalizeSnippetKeyOrField(field);
   const aliases = evidenceAliasesForField(normalizedField);
+  const textKeywords = evidenceTextKeywordsForField(normalizedField);
 
   const clip = (text: string): string => {
     const t = text.trim();
@@ -139,6 +157,17 @@ export function snippetEvidenceForField(field: string, snippets: Record<string, 
       continue;
     }
     if (snippetKeyRelatesToStructuredField(normalizeSnippetKeyOrField(k), normalizedField)) {
+      return clip(v);
+    }
+  }
+
+  for (const [, v] of Object.entries(snippets)) {
+    const t = v?.trim();
+    if (!t) {
+      continue;
+    }
+    const normalizedText = t.toLowerCase();
+    if (textKeywords.some((keyword) => normalizedText.includes(keyword))) {
       return clip(v);
     }
   }

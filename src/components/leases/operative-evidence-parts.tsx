@@ -75,6 +75,12 @@ export function OperativeEvidenceCollapsibles(props: Readonly<{
   const rationale = metaRow?.rationale?.trim();
   const hasClause = Boolean(clauseRef && clauseRef.length > 0);
   const hasSnippet = Boolean(props.snippetText && props.snippetText.trim().length > 0);
+  const rationaleText =
+    rationale && rationale.length > 0
+      ? rationale
+      : hasSnippet
+        ? "Matched to the source excerpt shown above; no separate model rationale was stored."
+        : "—";
 
   return (
     <>
@@ -99,7 +105,7 @@ export function OperativeEvidenceCollapsibles(props: Readonly<{
 
       <CollapsibleSection summary="Extraction rationale">
         <p className="text-sm leading-relaxed text-slate-800">
-          {rationale && rationale.length > 0 ? rationale : "—"}
+          {rationaleText}
         </p>
         {eff != null ? (
           <p className="text-[10px] tabular-nums text-slate-500">
