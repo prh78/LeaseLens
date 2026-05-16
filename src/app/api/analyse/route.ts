@@ -113,7 +113,7 @@ function visionDateMinConfidence(): number {
 function visionDateMaxPages(): number {
   const raw = process.env.OPENAI_VISION_DATE_MAX_PAGES?.trim();
   if (!raw) {
-    return 4;
+    return 6;
   }
   const n = Number(raw);
   return Number.isFinite(n) ? Math.min(Math.max(Math.floor(n), 1), 8) : 4;

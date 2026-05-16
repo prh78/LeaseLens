@@ -142,12 +142,24 @@ function evidenceTextForDateField(
     .join("\n");
 }
 
+function hasHighConfidenceVisionEvidence(
+  field: KeyDateField,
+  meta: Record<string, FieldExtractionMetaEntry>,
+): boolean {
+  const row = meta[field];
+  const clause = row?.clause_reference?.toLowerCase() ?? "";
+  return clause.includes("vision ocr") && typeof row?.confidence === "number" && row.confidence >= 0.75;
+}
+
 function unsupportedKeyDateWarnings(input: LeaseDateValidationInput): LeaseDateValidationWarning[] {
   const meta = parseFieldExtractionMeta(input.field_extraction_meta ?? null);
   const warnings: LeaseDateValidationWarning[] = [];
   for (const { field, label } of KEY_DATE_FIELDS) {
     const iso = input[field];
     if (!validIso(iso)) {
+      continue;
+    }
+    if (hasHighConfidenceVisionEvidence(field, meta)) {
       continue;
     }
     const evidenceText = evidenceTextForDateField(field, input, meta);

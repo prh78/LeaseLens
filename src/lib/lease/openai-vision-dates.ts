@@ -14,7 +14,7 @@ export type VisionDateCandidate = Readonly<{
 }>;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const DEFAULT_VISION_MODEL = "gpt-4o-mini";
+const DEFAULT_VISION_MODEL = "gpt-4o";
 const DEFAULT_TIMEOUT_MS = 180_000;
 
 const candidateSchema = z.object({
@@ -81,7 +81,8 @@ Rules:
 - Return null for a field unless the date is clearly tied to its label/definition.
 - Do not use rent review, rent escalation, signature, completion, or document dates as rent_commencement_date.
 - If a date is handwritten but legible, you may return it.
-- sourceText must quote/transcribe the nearby label and date exactly enough for audit.
+- Inspect every supplied page image. Page labels are provided immediately before each image.
+- sourceText must quote/transcribe the nearby label and handwritten/printed date exactly enough for audit.
 - Use ISO YYYY-MM-DD for value.
 - Return strict JSON only:
 { "candidates": [{ "field": "...", "value": "YYYY-MM-DD" | null, "confidence": 0-1 | null, "pageNumber": number | null, "sourceText": string | null, "rationale": string | null }] }`;
@@ -89,13 +90,19 @@ Rules:
   try {
     const content = [
       { type: "text", text: prompt },
-      ...input.pageImages.map((image) => ({
-        type: "image_url",
-        image_url: {
-          url: image.dataUrl,
-          detail: "high",
+      ...input.pageImages.flatMap((image) => [
+        {
+          type: "text",
+          text: `PAGE ${image.pageNumber}`,
         },
-      })),
+        {
+          type: "image_url",
+          image_url: {
+            url: image.dataUrl,
+            detail: "high",
+          },
+        },
+      ]),
     ];
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {

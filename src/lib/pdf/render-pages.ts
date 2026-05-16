@@ -3,7 +3,7 @@ export type RenderedPdfPageImage = Readonly<{
   dataUrl: string;
 }>;
 
-const DEFAULT_SCALE = 1.35;
+const DEFAULT_SCALE = 2;
 
 type CanvasModule = typeof import("@napi-rs/canvas");
 
