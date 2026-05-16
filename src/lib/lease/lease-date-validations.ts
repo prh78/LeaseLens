@@ -1,5 +1,6 @@
 import { parseIsoDateUtc } from "@/lib/alerts/date-helpers";
-import { jsonStringArray } from "@/lib/lease/lease-detail";
+import { jsonSnippetMap, jsonStringArray } from "@/lib/lease/lease-detail";
+import { snippetEvidenceForField } from "@/lib/lease/lease-detail-audit";
 import type { FieldExtractionMetaEntry } from "@/lib/lease/field-extraction-meta";
 import { parseFieldExtractionMeta } from "@/lib/lease/field-extraction-meta";
 import type { Json, Tables } from "@/lib/supabase/database.types";
@@ -61,7 +62,104 @@ export type LeaseDateValidationInput = Readonly<{
   expiry_date: string | null;
   rent_review_dates: Json;
   field_extraction_meta?: Json | null;
+  source_snippets?: Json | null;
 }>;
+
+type KeyDateField = "term_commencement_date" | "rent_commencement_date" | "expiry_date";
+
+const KEY_DATE_FIELDS: readonly { field: KeyDateField; label: string }[] = [
+  { field: "term_commencement_date", label: "Term commencement date" },
+  { field: "rent_commencement_date", label: "Rent commencement date" },
+  { field: "expiry_date", label: "Expiry date" },
+];
+
+const MONTH_NAMES = [
+  ["jan", "january"],
+  ["feb", "february"],
+  ["mar", "march"],
+  ["apr", "april"],
+  ["may"],
+  ["jun", "june"],
+  ["jul", "july"],
+  ["aug", "august"],
+  ["sep", "sept", "september"],
+  ["oct", "october"],
+  ["nov", "november"],
+  ["dec", "december"],
+] as const;
+
+function compactNumericDateVariants(iso: string): string[] {
+  const d = parseIsoDateUtc(iso);
+  if (!d) {
+    return [];
+  }
+  const y = String(d.getUTCFullYear());
+  const m = String(d.getUTCMonth() + 1);
+  const mm = m.padStart(2, "0");
+  const day = String(d.getUTCDate());
+  const dd = day.padStart(2, "0");
+  return [
+    `${y}-${mm}-${dd}`,
+    `${dd}/${mm}/${y}`,
+    `${day}/${m}/${y}`,
+    `${dd}.${mm}.${y}`,
+    `${day}.${m}.${y}`,
+    `${dd}-${mm}-${y}`,
+    `${day}-${m}-${y}`,
+  ];
+}
+
+function sourceTextSupportsIsoDate(sourceText: string, iso: string): boolean {
+  const d = parseIsoDateUtc(iso);
+  if (!d) {
+    return false;
+  }
+  const text = sourceText.toLowerCase();
+  if (compactNumericDateVariants(iso).some((variant) => text.includes(variant.toLowerCase()))) {
+    return true;
+  }
+  const y = String(d.getUTCFullYear());
+  const day = String(d.getUTCDate());
+  const ordinalDay = `${day}${day.endsWith("1") && day !== "11" ? "st" : day.endsWith("2") && day !== "12" ? "nd" : day.endsWith("3") && day !== "13" ? "rd" : "th"}`;
+  const monthNames = MONTH_NAMES[d.getUTCMonth()] ?? [];
+  return text.includes(y) && monthNames.some((month) => text.includes(month)) && (
+    new RegExp(`\\b${day}\\b`).test(text) || new RegExp(`\\b${ordinalDay}\\b`).test(text)
+  );
+}
+
+function evidenceTextForDateField(
+  field: KeyDateField,
+  input: LeaseDateValidationInput,
+  meta: Record<string, FieldExtractionMetaEntry>,
+): string {
+  const snippets = jsonSnippetMap(input.source_snippets ?? null);
+  return [
+    snippetEvidenceForField(field, snippets),
+    meta[field]?.clause_reference,
+    meta[field]?.rationale,
+  ]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .join("\n");
+}
+
+function unsupportedKeyDateWarnings(input: LeaseDateValidationInput): LeaseDateValidationWarning[] {
+  const meta = parseFieldExtractionMeta(input.field_extraction_meta ?? null);
+  const warnings: LeaseDateValidationWarning[] = [];
+  for (const { field, label } of KEY_DATE_FIELDS) {
+    const iso = input[field];
+    if (!validIso(iso)) {
+      continue;
+    }
+    const evidenceText = evidenceTextForDateField(field, input, meta);
+    if (!evidenceText || !sourceTextSupportsIsoDate(evidenceText, iso)) {
+      warnings.push({
+        code: `${field}_not_supported_by_source_excerpt`,
+        message: `${label} (${iso}) is not supported by the stored source excerpt/rationale. This often happens where dates are handwritten or OCR is uncertain; verify against the signed lease.`,
+      });
+    }
+  }
+  return warnings;
+}
 
 /**
  * Deterministic checks on extracted lease dates (no LLM). Used on analyse and lease UI.
@@ -73,6 +171,7 @@ export function computeLeaseDateValidationWarnings(input: LeaseDateValidationInp
   const expiry = input.expiry_date;
   const reviews = jsonStringArray(input.rent_review_dates).filter(validIso);
   const meta = parseFieldExtractionMeta(input.field_extraction_meta ?? null);
+  warnings.push(...unsupportedKeyDateWarnings(input));
 
   if (validIso(term) && validIso(rent) && compareIso(term, rent) > 0) {
     warnings.push({
@@ -160,20 +259,48 @@ export type ApplyLeaseDateValidationResult = Readonly<{
  * Applies deterministic date rules: extends `manual_review_recommended` when any rule fires.
  */
 export function applyLeaseDateValidationRules(data: LeaseAnalyseOutput): ApplyLeaseDateValidationResult {
-  const warnings = computeLeaseDateValidationWarnings({
+  const initialWarnings = computeLeaseDateValidationWarnings({
     term_commencement_date: data.term_commencement_date,
     rent_commencement_date: data.rent_commencement_date,
     expiry_date: data.expiry_date,
     rent_review_dates: data.rent_review_dates as unknown as Json,
     field_extraction_meta: data.field_extraction_meta as unknown as Json,
+    source_snippets: data.source_snippets as unknown as Json,
   });
-  const requiresManualReview = warnings.length > 0;
+  const unsupportedKeyDateFields = new Set<KeyDateField>(
+    initialWarnings
+      .map((warning) => KEY_DATE_FIELDS.find(({ field }) => warning.code === `${field}_not_supported_by_source_excerpt`)?.field)
+      .filter((field): field is KeyDateField => Boolean(field)),
+  );
+  const guardedData: LeaseAnalyseOutput = {
+    ...data,
+    term_commencement_date: unsupportedKeyDateFields.has("term_commencement_date")
+      ? null
+      : data.term_commencement_date,
+    rent_commencement_date: unsupportedKeyDateFields.has("rent_commencement_date")
+      ? null
+      : data.rent_commencement_date,
+    expiry_date: unsupportedKeyDateFields.has("expiry_date") ? null : data.expiry_date,
+  };
+  const warnings = computeLeaseDateValidationWarnings({
+    term_commencement_date: guardedData.term_commencement_date,
+    rent_commencement_date: guardedData.rent_commencement_date,
+    expiry_date: guardedData.expiry_date,
+    rent_review_dates: guardedData.rent_review_dates as unknown as Json,
+    field_extraction_meta: guardedData.field_extraction_meta as unknown as Json,
+    source_snippets: guardedData.source_snippets as unknown as Json,
+  });
+  const combinedWarnings = [
+    ...initialWarnings,
+    ...warnings.filter((warning) => !initialWarnings.some((w) => w.code === warning.code && w.message === warning.message)),
+  ];
+  const requiresManualReview = combinedWarnings.length > 0;
   return {
     data: {
-      ...data,
+      ...guardedData,
       manual_review_recommended: data.manual_review_recommended || requiresManualReview,
     },
-    warnings,
+    warnings: combinedWarnings,
     requiresManualReview,
   };
 }
@@ -182,7 +309,12 @@ export function applyLeaseDateValidationRules(data: LeaseAnalyseOutput): ApplyLe
 export function leaseDateValidationWarningsFromExtractedRow(
   row: Pick<
     Tables<"extracted_data">,
-    "term_commencement_date" | "rent_commencement_date" | "expiry_date" | "rent_review_dates" | "field_extraction_meta"
+    | "term_commencement_date"
+    | "rent_commencement_date"
+    | "expiry_date"
+    | "rent_review_dates"
+    | "field_extraction_meta"
+    | "source_snippets"
   >,
 ): LeaseDateValidationWarning[] {
   return computeLeaseDateValidationWarnings({
@@ -191,5 +323,6 @@ export function leaseDateValidationWarningsFromExtractedRow(
     expiry_date: row.expiry_date,
     rent_review_dates: row.rent_review_dates,
     field_extraction_meta: row.field_extraction_meta ?? null,
+    source_snippets: row.source_snippets ?? null,
   });
 }

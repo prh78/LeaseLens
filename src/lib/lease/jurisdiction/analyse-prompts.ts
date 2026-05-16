@@ -7,6 +7,7 @@ Rules:
 - Output must match the exact keys requested in the user message. Every key must be present.
 - Use null for any field you cannot support with clear, explicit wording in the lease.
 - Dates must be ISO strings "YYYY-MM-DD" only, or null — never guess a date.
+- If a key date appears handwritten, partially legible, OCR-corrupted, or not present in the extracted text with clear support, return null for that date and add a date_ambiguities entry (code: handwritten_or_ocr_unclear) with manual_review_recommended true.
 - Do not assume UK, US, or any specific legal regime unless the lease's governing law or defined terms make it clear.
 - break_dates and rent_review_dates are arrays of ISO date strings (empty array if none found).
 - notice_period_days: integer calendar days ONLY when the lease states a clear day count; otherwise null and populate notice_period_spec.
