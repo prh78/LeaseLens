@@ -15,21 +15,32 @@ async function loadCanvasModule(): Promise<CanvasModule> {
   return dynamicImport("@napi-rs/canvas");
 }
 
+function installPdfJsCanvasGlobals(canvasModule: CanvasModule): void {
+  const g = globalThis as Record<string, unknown>;
+  g.DOMMatrix ??= canvasModule.DOMMatrix;
+  g.DOMPoint ??= canvasModule.DOMPoint;
+  g.DOMRect ??= canvasModule.DOMRect;
+  g.ImageData ??= canvasModule.ImageData;
+  g.Path2D ??= canvasModule.Path2D;
+}
+
 /**
  * Renders the first N PDF pages to PNG data URLs for vision/OCR fallback.
  * Keep this server-only: it uses native canvas bindings.
  */
 export async function renderPdfPagesToPngDataUrls(
   data: Buffer,
-  options?: Readonly<{ maxPages?: number; scale?: number }>,
+  options?: Readonly<{ maxPages?: number; scale?: number; pageNumbers?: readonly number[] }>,
 ): Promise<RenderedPdfPageImage[]> {
   const maxPages = Math.min(Math.max(options?.maxPages ?? 4, 1), 8);
-  const scale = Math.min(Math.max(options?.scale ?? DEFAULT_SCALE, 0.8), 2.25);
+  const scale = Math.min(Math.max(options?.scale ?? DEFAULT_SCALE, 0.8), 3);
 
-  const [{ createCanvas }, pdfjs] = await Promise.all([
+  const [canvasModule, pdfjs] = await Promise.all([
     loadCanvasModule(),
     import("pdfjs-dist/legacy/build/pdf.mjs"),
   ]);
+  installPdfJsCanvasGlobals(canvasModule);
+  const { createCanvas } = canvasModule;
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(data),
     disableWorker: true,
@@ -39,8 +50,12 @@ export async function renderPdfPagesToPngDataUrls(
   const out: RenderedPdfPageImage[] = [];
 
   try {
-    const pageCount = Math.min(doc.numPages, maxPages);
-    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+    const requestedPages = options?.pageNumbers?.length
+      ? [...new Set(options.pageNumbers)]
+          .filter((n) => Number.isInteger(n) && n >= 1 && n <= doc.numPages)
+          .sort((a, b) => a - b)
+      : Array.from({ length: Math.min(doc.numPages, maxPages) }, (_, i) => i + 1);
+    for (const pageNumber of requestedPages) {
       const page = await doc.getPage(pageNumber);
       const viewport = page.getViewport({ scale });
       const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));

@@ -46,6 +46,7 @@ const VISION_DATE_FIELDS: readonly VisionKeyDateField[] = [
   "term_commencement_date",
   "rent_commencement_date",
   "expiry_date",
+  "break_dates",
 ];
 
 type AnalyseBody = {
@@ -119,6 +120,20 @@ function visionDateMaxPages(): number {
   return Number.isFinite(n) ? Math.min(Math.max(Math.floor(n), 1), 8) : 4;
 }
 
+function visionDateFocusedPages(): number[] {
+  const raw = process.env.OPENAI_VISION_DATE_FOCUSED_PAGES?.trim();
+  if (raw) {
+    const parsed = raw
+      .split(",")
+      .map((part) => Number.parseInt(part.trim(), 10))
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= 30);
+    if (parsed.length > 0) {
+      return [...new Set(parsed)].sort((a, b) => a - b);
+    }
+  }
+  return [1, 2, 3, 4, 5, 6];
+}
+
 function visionDateOcrEnabled(): boolean {
   return process.env.OPENAI_VISION_DATE_OCR?.trim().toLowerCase() !== "off";
 }
@@ -140,11 +155,21 @@ async function applyVisionDateFallback(input: Readonly<{
 
   try {
     const buffer = Buffer.from(await blob.arrayBuffer());
-    const pageImages = await renderPdfPagesToPngDataUrls(buffer, { maxPages: visionDateMaxPages() });
+    const pageNumbers = visionDateFocusedPages();
+    const pageImages = await renderPdfPagesToPngDataUrls(buffer, {
+      maxPages: visionDateMaxPages(),
+      pageNumbers,
+      scale: 2.5,
+    });
+    console.info("[analyse] vision date OCR rendered pages:", pageImages.map((p) => p.pageNumber).join(", "));
     const candidates = await readKeyDatesWithOpenAIVision({
       pageImages,
       fields: VISION_DATE_FIELDS,
     });
+    console.info(
+      "[analyse] vision date OCR candidates:",
+      candidates.map((c) => `${c.field}=${Array.isArray(c.value) ? c.value.join("|") : c.value ?? "null"}@${c.confidence ?? "n/a"}p${c.pageNumber ?? "?"}`).join(", "),
+    );
     if (candidates.length === 0) {
       return input.structured;
     }
@@ -157,6 +182,35 @@ async function applyVisionDateFallback(input: Readonly<{
       }
       const sourceText = candidate.sourceText?.trim();
       if (!sourceText) {
+        continue;
+      }
+      if (candidate.field === "break_dates") {
+        const values = Array.isArray(candidate.value) ? candidate.value : [candidate.value];
+        if (values.length === 0) {
+          continue;
+        }
+        next = {
+          ...next,
+          break_dates: values,
+          source_snippets: {
+            ...next.source_snippets,
+            break_dates: sourceText,
+          },
+          field_extraction_meta: {
+            ...next.field_extraction_meta,
+            break_dates: {
+              ...(next.field_extraction_meta.break_dates ?? {}),
+              confidence: candidate.confidence,
+              clause_reference: candidate.pageNumber ? `Vision OCR page ${candidate.pageNumber}` : "Vision OCR",
+              rationale:
+                candidate.rationale ??
+                "Break date read from rendered PDF image because embedded text did not clearly support the break date.",
+            },
+          },
+        };
+        continue;
+      }
+      if (Array.isArray(candidate.value)) {
         continue;
       }
       next = {

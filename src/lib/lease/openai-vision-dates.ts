@@ -2,11 +2,11 @@ import { z } from "zod";
 
 import type { RenderedPdfPageImage } from "@/lib/pdf/render-pages";
 
-export type VisionKeyDateField = "term_commencement_date" | "rent_commencement_date" | "expiry_date";
+export type VisionKeyDateField = "term_commencement_date" | "rent_commencement_date" | "expiry_date" | "break_dates";
 
 export type VisionDateCandidate = Readonly<{
   field: VisionKeyDateField;
-  value: string | null;
+  value: string | string[] | null;
   confidence: number | null;
   pageNumber: number | null;
   sourceText: string | null;
@@ -18,8 +18,8 @@ const DEFAULT_VISION_MODEL = "gpt-4o";
 const DEFAULT_TIMEOUT_MS = 180_000;
 
 const candidateSchema = z.object({
-  field: z.enum(["term_commencement_date", "rent_commencement_date", "expiry_date"]),
-  value: z.union([z.string().regex(ISO), z.null()]),
+  field: z.enum(["term_commencement_date", "rent_commencement_date", "expiry_date", "break_dates"]),
+  value: z.union([z.string().regex(ISO), z.array(z.string().regex(ISO)), z.null()]),
   confidence: z.union([z.number().min(0).max(1), z.null()]),
   pageNumber: z.union([z.number().int().min(1), z.null()]),
   sourceText: z.union([z.string().max(1000), z.null()]),
@@ -55,6 +55,7 @@ function fieldInstruction(fields: readonly VisionKeyDateField[]): string {
     term_commencement_date: "legal commencement date of the lease term",
     rent_commencement_date: "date rent first becomes payable, not rent review/escalation dates",
     expiry_date: "contractual expiry / expiration / end date of the lease term",
+    break_dates: "break date(s), termination option date(s), or early termination option date(s)",
   };
   return fields.map((field) => `- ${field}: ${labels[field]}`).join("\n");
 }
@@ -79,7 +80,8 @@ ${fieldInstruction(input.fields)}
 
 Rules:
 - Return null for a field unless the date is clearly tied to its label/definition.
-- Do not use rent review, rent escalation, signature, completion, or document dates as rent_commencement_date.
+- break_dates must be an array of ISO dates when one or more break/termination option dates are clearly tied to a break option label; otherwise null.
+- Do not use rent review, rent escalation, signature, completion, handwritten completion, or document dates as key dates or break_dates.
 - If a date is handwritten but legible, you may return it.
 - Inspect every supplied page image. Page labels are provided immediately before each image.
 - sourceText must quote/transcribe the nearby label and handwritten/printed date exactly enough for audit.
